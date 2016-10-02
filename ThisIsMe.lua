@@ -1147,8 +1147,15 @@ end
 ---------------------------------------------------------------------------------------------------
 
 function ThisIsMe:OnDropdownWindowClosed( wndHandler, wndControl )
-	local window = Apollo.GetMouseTargetWindow()
-	self:Print(1, "Current window's text: " .. window:GetText())
+--	local window = Apollo.GetMouseTargetWindow()
+--	self:Print(1, "Current window's text: " .. window:GetText())
+end
+
+function ThisIsMe:OnDropdownOpen( wndHandler, wndControl, eMouseButton )
+	local dropdownWindow = wndControl:FindChild("DropdownContainer")
+	if dropdownWindow then
+		dropdownWindow:SetFocus()
+	end
 end
 
 ---------------------------------------------------------------------------------------------------
@@ -1524,18 +1531,14 @@ function ThisIsMe:SendMessage(message, recipient)
 		self:SetupComms()
 		return false
 	end
-	if recipient ~= nil then
+	if recipient == nil then
 		if self.Comm:SendMessage(message) then
 			self:Print(5, "Message Sent: " .. message)
 			return true
 		end
 	else
-		if self.Comm:SendMessage(message, recipient) then
-			if recipient ~= nil then
-				self:Print(5, "Message Sent to " .. recipient .. ": " .. message)
-			else
-				self:Print(5, "Message Sent: " .. message)
-			end
+		if self.Comm:SendPrivateMessage(message, recipient) then
+			self:Print(5, "Message Sent to " .. recipient .. ": " .. message)
 			return true
 		end
 	end
