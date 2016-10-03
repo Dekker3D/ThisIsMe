@@ -806,18 +806,16 @@ function ThisIsMe:PopulateProfileView()
 		item = self:AddProfileEntry(self.wndProfileContainer, "Name")
 		self:AddTextBox(item, profile.Name or self.profileCharacter or "Name", "Name")
 		
-		if self.options.debugMode then
-			item = self:AddProfileEntry(self.wndProfileContainer, "Gender")
-			self:AddDropdownBox(item, self.genders, profile.Gender or 1, profile, "Gender")
-			item = self:AddProfileEntry(self.wndProfileContainer, "Race")
-			self:AddDropdownBox(item, self.races, profile.Race or 1, profile, "Race")
-			item = self:AddProfileEntry(self.wndProfileContainer, "Hair Length")
-			self:AddDropdownBox(item, self.hairLength[1], profile.HairLength or 1, profile, "HairLength")
-			item = self:AddProfileEntry(self.wndProfileContainer, "Hair Quality")
-			self:AddDropdownBox(item, self.hairQuality, profile.HairQuality or 1, profile, "HairQuality")
-			item = self:AddProfileEntry(self.wndProfileContainer, "Hair Style")
-			self:AddDropdownBox(item, self.hairStyle, profile.HairStyle or 1, profile, "HairStyle")
-		end
+		item = self:AddProfileEntry(self.wndProfileContainer, "Gender")
+		self:AddDropdownBox(item, self.genders, profile.Gender or 1, profile, "Gender")
+		item = self:AddProfileEntry(self.wndProfileContainer, "Race")
+		self:AddDropdownBox(item, self.races, profile.Race or 1, profile, "Race")
+		item = self:AddProfileEntry(self.wndProfileContainer, "Hair Length")
+		self:AddDropdownBox(item, self.hairLength[1], profile.HairLength or 1, profile, "HairLength")
+		item = self:AddProfileEntry(self.wndProfileContainer, "Hair Quality")
+		self:AddDropdownBox(item, self.hairQuality, profile.HairQuality or 1, profile, "HairQuality")
+		item = self:AddProfileEntry(self.wndProfileContainer, "Hair Style")
+		self:AddDropdownBox(item, self.hairStyle, profile.HairStyle or 1, profile, "HairStyle")
 		
 		item = self:AddProfileEntry(self.wndProfileContainer, "Extra")
 		if profile.Snippets ~= nil then
