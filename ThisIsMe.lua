@@ -36,9 +36,7 @@ function ThisIsMe:new(o)
     self.__index = self 
 
     -- initialize variables here
-	o.tItems = {} -- keep track of all the list items
-	o.wndSelectedListItem = nil -- keep track of which list item is currently selected
-	
+	o.profileListEntries = {} -- keep track of all the list items
 	o.characterProfiles = {}
 	
 	o.messageQueue = {}
@@ -107,7 +105,7 @@ function ThisIsMe:new(o)
 		"Gray"
 	}
 	
-	o.tailSizes = {
+	o.tailSize = {
 		"N/A",
 		"Other",
 		"Long",
@@ -120,7 +118,7 @@ function ThisIsMe:new(o)
 		"Ratty"
 	}
 	
-	o.tailStates = {
+	o.tailState = {
 		"N/A",
 		"Other",
 		"Fluffy",
@@ -133,7 +131,7 @@ function ThisIsMe:new(o)
 		"Dirty"
 	}
 	
-	o.tailDecorations = {
+	o.tailDecoration = {
 		"N/A",
 		"Other",
 		"Circlet/Band",
@@ -276,7 +274,7 @@ function ThisIsMe:OnDocLoaded()
 			return
 		end		
 		-- item list
-		self.wndItemList = self.wndMain:FindChild("ItemList")
+		self.wndProfileList = self.wndMain:FindChild("ItemList")
 	    self.wndMain:Show(false, true)
 
 		-- Register handlers for events, slash commands and timer, etc.
@@ -365,6 +363,28 @@ function ThisIsMe:Clamp(num, min, max)
 	if num < min then return min end
 	if num > max then return max end
 	return num
+end
+
+function ThisIsMe:GetWindowAbsolutePosition(window)
+	local position = window:GetClientRect() -- might want to change this to GetRect too. Otherwise I'm just gonna get rect.
+	local x = position.nLeft
+	local y = position.nTop
+	local newWindow = window:GetParent()
+	local left, top, right, bottom
+	while newWindow ~= nil do
+		left, top, right, bottom = newWindow:GetRect()
+		x = x + left
+		y = y + top
+		newWindow = newWindow:GetParent()
+	end
+	return {nLeft = x, nTop = y, nRight = x + position.nWidth, nBottom = y + position.nHeight, nWidth = position.nWidth, nHeight = position.nHeight}
+end
+
+function ThisIsMe:PrintNil(name, value)
+	if value ~= nil then
+		return name .. " is not nil"
+	end
+	return name .. " is nil"
 end
 
 ---------------------------------------------------------------------------------------------------
@@ -494,7 +514,7 @@ function ThisIsMe:OpenProfileList()
 	self.wndMain:Invoke()
 	
 	-- populate the item list
-	self:PopulateItemList()
+	self:PopulateProfileList()
 	if self.seenEveryone ~= true then
 		self:SendPresenceRequestMessage()
 	end
@@ -530,7 +550,7 @@ function ThisIsMe:OpenProfileView()
 			cancelButton:SetText("Close")
 		end
 	end
-	self:PopulateProfileList()
+	self:PopulateProfileView()
 end
 
 -- when the Profile's Cancel button is clicked
@@ -608,7 +628,7 @@ function ThisIsMe:OnTestClick( wndHandler, wndControl, eMouseButton )
 end
 
 -----------------------------------------------------------------------------------------------
--- ItemList Functions
+-- ProfileList Functions
 -----------------------------------------------------------------------------------------------
 function ProfileSort(profile1, profile2)
 	if profile1 == nil then
@@ -621,10 +641,10 @@ function ProfileSort(profile1, profile2)
 	return profile1.Name < profile2.Name
 end
 
--- populate item list
-function ThisIsMe:PopulateItemList()
-	-- make sure the item list is empty to start with
-	self:DestroyItemList()
+-- populate profile list
+function ThisIsMe:PopulateProfileList()
+	-- make sure the profile list is empty to start with
+	self:DestroyProfileList()
 	
     -- add profiles
 	local ordered = {}
@@ -638,8 +658,8 @@ function ThisIsMe:PopulateItemList()
         self:AddItem(v.Name, v.Profile)
 	end
 	
-	-- now all the item are added, call ArrangeChildrenVert to list out the list items vertically
-	self.wndItemList:ArrangeChildrenVert()
+	-- now all the profiles are added, call ArrangeChildrenVert to list out the list items vertically
+	self.wndProfileList:ArrangeChildrenVert()
 	
 	local testButton = self.wndMain:FindChild("TestButton")
 	if testButton then
@@ -648,9 +668,9 @@ function ThisIsMe:PopulateItemList()
 end
 
 -- clear the item list
-function ThisIsMe:DestroyItemList()
-	if self.wndItemList ~= nil then
-		local children = self.wndItemList:GetChildren()
+function ThisIsMe:DestroyProfileList()
+	if self.wndProfileList ~= nil then
+		local children = self.wndProfileList:GetChildren()
 		-- destroy all the wnd inside the list
 		for idx, wnd in pairs(children ) do
 			wnd:Destroy()
@@ -658,17 +678,17 @@ function ThisIsMe:DestroyItemList()
 	end
 
 	-- clear the list item array
-	self.tItems = {}
+	self.profileListEntries = {}
 	self.wndSelectedListItem = nil
 end
 
 -- add an item into the item list
 function ThisIsMe:AddItem(name, profile)
 	-- load the window item for the list item
-	local wnd = Apollo.LoadForm(self.xmlDoc, "ListItem", self.wndItemList, self)
+	local wnd = Apollo.LoadForm(self.xmlDoc, "ListItem", self.wndProfileList, self)
 	
 	-- keep track of the window item created
-	self.tItems[wnd] = name
+	self.profileListEntries[wnd] = name
 	
 	self:SetItem(wnd, name, profile)
 	
@@ -759,7 +779,7 @@ function ThisIsMe:SetItem(item, name, profile)
 end
 
 function ThisIsMe:UpdateItemByName(name)
-	for k, v in pairs(self.tItems) do
+	for k, v in pairs(self.profileListEntries) do
 		if v == name then
 			self:SetItem(k, v, self.characterProfiles[v])
 			break
@@ -767,33 +787,9 @@ function ThisIsMe:UpdateItemByName(name)
 	end
 end
 
--- when a list item is selected
-function ThisIsMe:OnListItemSelected(wndHandler, wndControl)
-    -- make sure the wndControl is valid
-    if wndHandler ~= wndControl then
-        return
-    end
-    
-    -- change the old item's text color back to normal color
-    local wndItemText
-    if self.wndSelectedListItem ~= nil then
-        wndItemText = self.wndSelectedListItem:FindChild("Name")
-        wndItemText:SetTextColor(kcrNormalText)
-		self.wndSelectedListItem:SetSprite(listDefault)
-    end
-    
-	-- wndControl is the item selected - change its color to selected
-	self.wndSelectedListItem = wndControl
-	wndItemText = self.wndSelectedListItem:FindChild("Name")
-    wndItemText:SetTextColor(kcrSelectedText)
-	self.wndSelectedListItem:SetSprite(listSelected)
-    
-	self.profileCharacter = self.wndSelectedListItem:GetData()
-end
-
-function ThisIsMe:PopulateProfileList()
+function ThisIsMe:PopulateProfileView()
 	if self.profileEdit == true then self.profileCharacter = self:Character() end
-	self:Print(1, "Populating profile view: " .. (self.profileCharacter or "literally nobody, your currentCharacter variable is empty"))
+	self:Print(1, "Populating profile view: " .. (self.profileCharacter or "literally nobody, your profileCharacter variable is empty"))
 	self:DestroyProfileView()
 	
 	if self.profileCharacter == nil or self.characterProfiles[self.profileCharacter] == nil then return end
@@ -816,11 +812,11 @@ function ThisIsMe:PopulateProfileList()
 			item = self:AddProfileEntry(self.wndProfileContainer, "Race")
 			self:AddDropdownBox(item, self.races, profile.Race or 1, profile, "Race")
 			item = self:AddProfileEntry(self.wndProfileContainer, "Hair Length")
-			self:AddDropdownBox(item, self.hairLength[1], profile.HairLength or 1, profile, "Hair Length")
+			self:AddDropdownBox(item, self.hairLength[1], profile.HairLength or 1, profile, "HairLength")
 			item = self:AddProfileEntry(self.wndProfileContainer, "Hair Quality")
-			self:AddDropdownBox(item, self.hairQuality, profile.HairQuality or 1, profile, "Hair Quality")
+			self:AddDropdownBox(item, self.hairQuality, profile.HairQuality or 1, profile, "HairQuality")
 			item = self:AddProfileEntry(self.wndProfileContainer, "Hair Style")
-			self:AddDropdownBox(item, self.hairStyle, profile.HairStyle or 1, profile, "Hair Style")
+			self:AddDropdownBox(item, self.hairStyle, profile.HairStyle or 1, profile, "HairStyle")
 		end
 		
 		item = self:AddProfileEntry(self.wndProfileContainer, "Extra")
@@ -836,6 +832,9 @@ function ThisIsMe:PopulateProfileList()
 		if profile.HairLength ~= nil and profile.HairLength >= 2 then self:AddProfileEntry(self.wndProfileContainer, "Hair Length", self.hairLength[1][profile.HairLength or 2]) end
 		if profile.HairQuality ~= nil and profile.HairQuality >= 2 then self:AddProfileEntry(self.wndProfileContainer, "Hair Quality", self.hairQuality[profile.HairQuality or 2]) end
 		if profile.HairStyle ~= nil and profile.HairStyle >= 2 then self:AddProfileEntry(self.wndProfileContainer, "Hair Style", self.hairStyle[profile.HairStyle or 2]) end
+--		if profile.TailSize ~= nil and profile.TailSize >= 2 then self:AddProfileEntry(self.wndProfileContainer, "Tail Size", self.tailSize[profile.TailSize or 2]) end
+--		if profile.TailState ~= nil and profile.TailState >= 2 then self:AddProfileEntry(self.wndProfileContainer, "Hair Style", self.tailState[profile.TailState or 2]) end
+--		if profile.TailDecoration ~= nil and profile.TailDecoration >= 2 then self:AddProfileEntry(self.wndProfileContainer, "Tail Decoration", self.tailDecoration[profile.TailDecoration or 2]) end
 		if profile.Snippets ~= nil then
 			for k, v in pairs(profile.Snippets) do
 				if type(k) == "number" and k ~= 1 then
@@ -928,26 +927,61 @@ function ThisIsMe:AddDropdownBox(item, list, selected, table, entryName)
 		self:ClearAllChildren(wndOptionFrame)
 		local menu = Apollo.LoadForm(self.xmlDoc, "DropdownMenu", wndOptionFrame, self)
 		local entryText = menu:FindChild("DropdownButton")
-		local window = menu:FindChild("DropdownWindow")
+		local window = Apollo.LoadForm(self.xmlDoc, "DropdownWindow", nil, self)
 		if entryText then
 			entryText:SetText(list[selected] or "")
 			if window then
+				entryText:SetData(window)
 				entryText:AttachWindow(window)
 				window:Close()
 			end
 		end
-		if item == nil then return end
-		container = item:FindChild("DropdownContainer")
+		if window == nil then return end
+		local container = window:FindChild("DropdownContainer")
 		if container == nil then return end
 		for k, v in ipairs(list) do
 			local newEntry = Apollo.LoadForm(self.xmlDoc, "DropdownEntry", container, self)
 			newEntry:SetText(v)
-			newEntry:SetData({Parent = item, Table = table, Entry = entryname, Number = k})
-			newEntry:SetFocus()
+			newEntry:SetData({Parent = item, Table = table, Entry = entryName, Number = k})
 		end
-		window:SetAnchorOffsets(0, 0, 0, 6 + (30 * #list))
 		container:ArrangeChildrenVert()
 		return menu
+	end
+end
+
+function ThisIsMe:OnDropdownSelection( wndHandler, wndControl, eMouseButton )
+--	self:Print(1, "Pressed button")
+	local data = wndControl:GetData()
+	if data == nil or type(data) ~= "table" then return end
+--	self:Print(1, "Button has data " .. self:PrintNil("parent", data.Parent) .. ", " .. self:PrintNil("number", data.Number) .. ", " .. self:PrintNil("table", data.Table) .. ", " .. self:PrintNil("entry", data.Entry))
+	if data.Parent == nil or data.Number == nil or data.Table == nil or data.Entry == nil then return end
+	local button = data.Parent:FindChild("DropdownButton")
+	if button ~= nil then
+		button:SetCheck(false)
+		button:SetText(wndControl:GetText())
+	end
+	data.Table[data.Entry] = data.Number
+end
+
+function ThisIsMe:OnDropdownOpen( wndHandler, wndControl, eMouseButton )
+	local dropdown = wndControl:GetData()
+	if dropdown ~= nil then
+		local container = dropdown:FindChild("DropdownContainer")
+		local numItems = 3
+		if container ~= nil then
+			numItems = #container:GetChildren()
+		end
+		dropdown:Invoke()
+		local pos = self:GetWindowAbsolutePosition(wndControl)
+		dropdown:SetAnchorOffsets(pos.nLeft, pos.nBottom, pos.nLeft + pos.nWidth, pos.nBottom + 6 + numItems * 30)
+		dropdown:SetAnchorPoints(0, 0, 0, 0)
+	end
+end
+
+function ThisIsMe:OnDropdownClose( wndHandler, wndControl )
+	local button = wndControl:GetData()
+	if button ~= nil then
+		button:SetCheck(false)
 	end
 end
 
@@ -986,20 +1020,6 @@ function ThisIsMe:CompareTableEqualBoth(table, table2)
 end
 
 ---------------------------------------------------------------------------------------------------
--- DropdownEntry Functions
----------------------------------------------------------------------------------------------------
-
-function ThisIsMe:OnDropdownSelection( wndHandler, wndControl, eMouseButton )
-	self:Print(1, "Pressed button")
-	local data = wndControl:GetData()
-	if data == nil or data ~= "table" then return end
-	if data.Parent == nil or data.Number == nil or data.Table == nil or data.Entry == nil then return end
-	data.Parent:SetCheck(false)
-	data.Parent:SetText(wndControl:GetText())
-	data.Table[data.Entry] = data.Number
-end
-
----------------------------------------------------------------------------------------------------
 -- ListItem Functions
 ---------------------------------------------------------------------------------------------------
 
@@ -1019,7 +1039,7 @@ function ThisIsMe:ReEnableUpdateButton()
 end
 
 function ThisIsMe:ResetItemList()
-	for k, v in pairs(self.tItems) do
+	for k, v in pairs(self.profileListEntries) do
 		self:SetItem(k, v, self.characterProfiles[v])
 	end
 end
@@ -1141,23 +1161,6 @@ end
 function ThisIsMe:OnDebugModeToggle( wndHandler, wndControl, eMouseButton )
 	self.newOptions.debugMode = wndControl:IsChecked()
 end
-
----------------------------------------------------------------------------------------------------
--- DropdownMenu Functions
----------------------------------------------------------------------------------------------------
-
-function ThisIsMe:OnDropdownWindowClosed( wndHandler, wndControl )
---	local window = Apollo.GetMouseTargetWindow()
---	self:Print(1, "Current window's text: " .. window:GetText())
-end
-
-function ThisIsMe:OnDropdownOpen( wndHandler, wndControl, eMouseButton )
-	local dropdownWindow = wndControl:FindChild("DropdownContainer")
-	if dropdownWindow then
-		dropdownWindow:SetFocus()
-	end
-end
-
 ---------------------------------------------------------------------------------------------------
 -- Network Functions
 ---------------------------------------------------------------------------------------------------
@@ -1282,7 +1285,7 @@ function ThisIsMe:ProcessMessage(channel, strMessage, strSender, protocolVersion
 		self:ReceiveWrappedMessage(strMessage, strSender, protocolVersion)
 	end
 	
-	if shouldUpdate then self:PopulateItemList() end
+	if shouldUpdate then self:PopulateProfileList() end
 	if shouldProcessBacklog then
 		if profile.BufferedMessages ~= nil then
 			if self:AllowedProtocolVersion(protocolVersion) then
@@ -1725,6 +1728,9 @@ function ThisIsMe:GetProfileDefaults(name, unit)
 	profile.HairStyle = 1
 	profile.HairLength = 1
 	profile.HairQuality = 1
+	profile.TailSize = 1
+	profile.TailState = 1
+	profile.TailDecoration = 1
 	profile.Tattoos = {}
 	profile.Scars = {}
 	profile.Talents = {}
@@ -1739,5 +1745,6 @@ end
 -----------------------------------------------------------------------------------------------
 -- ThisIsMe Instance
 -----------------------------------------------------------------------------------------------
+
 local ThisIsMeInst = ThisIsMe:new()
 ThisIsMeInst:Init()
