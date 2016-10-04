@@ -1538,7 +1538,7 @@ function ThisIsMe:SendMessage(message, recipient)
 			return true
 		end
 	else
-		if self.Comm:SendPrivateMessage(message, recipient) then
+		if self.Comm:SendPrivateMessage(recipient, message) then
 			self:Print(5, "Message Sent to " .. recipient .. ": " .. message)
 			return true
 		end
@@ -1615,7 +1615,7 @@ function ThisIsMe:EncodeProfile(profile)
 	ret = ret .. self:Encode(profile.HairStreaks or 1)
 	ret = ret .. self:Encode(profile.Age or 1)
 	ret = ret .. self:Encode(profile.Gender or 1)
-	ret = ret .. AddEncodedValue(self:Encode(profile.Race or 1), protocolVersion, 2, nil)
+	ret = ret .. self:AddEncodedValue(self:Encode(profile.Race or 1), protocolVersion, 2, nil)
 	ret = ret .. self:Encode(1) -- Sexuality, to be ignored
 	ret = ret .. self:Encode(1) -- Relationship, also to be ignored
 	ret = ret .. self:Encode(profile.EyeColour or 1)
@@ -1730,39 +1730,39 @@ function ThisIsMe:DecodeProfile(input, profile)
 	local protocolVersion = profile.ProtocolVersion or self.options.protocolVersion -- should always be filled in anyway.
 	self:Print(9, "Received a profile with protocol version " .. protocolVersion)
 	local inputTable = {Message = input}
-	profile.Version = self:DecodeMore(self:AddDecodedValue(inputTable, 2, protocolVersion, nil, nil)) or profile.Version
-	profile.HairStyle = self:DecodeMore(self:AddDecodedValue(inputTable, 1, protocolVersion, nil, nil)) or profile.HairStyle
-	profile.HairLength = self:DecodeMore(self:AddDecodedValue(inputTable, 1, protocolVersion, nil, nil)) or profile.HairLength
-	profile.HairQuality = self:DecodeMore(self:AddDecodedValue(inputTable, 1, protocolVersion, nil, nil)) or profile.HairQuality
-	profile.HairColour = self:DecodeMore(self:AddDecodedValue(inputTable, 1, protocolVersion, nil, nil)) or profile.HairColour
-	profile.HairStreaks = self:DecodeMore(self:AddDecodedValue(inputTable, 1, protocolVersion, nil, nil)) or profile.HairStreaks
-	profile.Age = self:DecodeMore(self:AddDecodedValue(inputTable, 1, protocolVersion, nil, nil)) or profile.Age
-	profile.Gender = self:DecodeMore(self:AddDecodedValue(inputTable, 1, protocolVersion, nil, nil)) or profile.Gender
-	profile.Race = self:DecodeMore(self:AddDecodedValue(inputTable, 1, protocolVersion, 2, nil)) or profile.Race -- only in ProtocolVersion 2 and up
-	self:DecodeMore(self:AddDecodedValue(inputTable, 1, protocolVersion, nil, nil)) -- Sexuality, to be ignored
-	self:DecodeMore(self:AddDecodedValue(inputTable, 1, protocolVersion, nil, nil)) -- Relationship, also to be ignored
-	profile.EyeColour = self:DecodeMore(self:AddDecodedValue(inputTable, 1, protocolVersion, nil, nil)) or profile.EyeColour
-	profile.Length = self:DecodeMore(self:AddDecodedValue(inputTable, 1, protocolVersion, nil, nil)) or profile.Length
-	profile.BodyType = self:DecodeMore(self:AddDecodedValue(inputTable, 1, protocolVersion, nil, nil)) or profile.BodyType
-	local amount = self:DecodeMore(self:AddDecodedValue(inputTable, 1, protocolVersion, nil, nil)) - 1
+	profile.Version = self:DecodeMore(self:DecodeGetFirstCharacters(inputTable, 2, protocolVersion, nil, nil)) or profile.Version
+	profile.HairStyle = self:DecodeMore(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, nil)) or profile.HairStyle
+	profile.HairLength = self:DecodeMore(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, nil)) or profile.HairLength
+	profile.HairQuality = self:DecodeMore(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, nil)) or profile.HairQuality
+	profile.HairColour = self:DecodeMore(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, nil)) or profile.HairColour
+	profile.HairStreaks = self:DecodeMore(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, nil)) or profile.HairStreaks
+	profile.Age = self:DecodeMore(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, nil)) or profile.Age
+	profile.Gender = self:DecodeMore(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, nil)) or profile.Gender
+	profile.Race = self:DecodeMore(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, 2, nil)) or profile.Race -- only in ProtocolVersion 2 and up
+	self:DecodeMore(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, nil)) -- Sexuality, to be ignored
+	self:DecodeMore(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, nil)) -- Relationship, also to be ignored
+	profile.EyeColour = self:DecodeMore(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, nil)) or profile.EyeColour
+	profile.Length = self:DecodeMore(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, nil)) or profile.Length
+	profile.BodyType = self:DecodeMore(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, nil)) or profile.BodyType
+	local amount = self:DecodeMore(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, nil)) - 1
 	profile.Scars = {}
 	for i = 1, amount, 1 do
-		profile.Scars[i] = self:DecodeMore(self:AddDecodedValue(inputTable, 1, protocolVersion, nil, nil)) or 1
+		profile.Scars[i] = self:DecodeMore(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, nil)) or 1
 	end
-	amount = self:DecodeMore(self:AddDecodedValue(inputTable, 1, protocolVersion, nil, nil)) - 1
+	amount = self:DecodeMore(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, nil)) - 1
 	profile.Tattoos = {}
 	for i = 1, amount, 1 do
-		profile.Tattoos[i] = self:DecodeMore(self:AddDecodedValue(inputTable, 1, protocolVersion, nil, nil)) or 1
+		profile.Tattoos[i] = self:DecodeMore(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, nil)) or 1
 	end
-	amount = self:DecodeMore(self:AddDecodedValue(inputTable, 1, protocolVersion, nil, nil)) - 1
+	amount = self:DecodeMore(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, nil)) - 1
 	profile.Talents = {}
 	for i = 1, amount, 1 do
-		profile.Talents[i] = self:DecodeMore(self:AddDecodedValue(inputTable, 1, protocolVersion, nil, nil)) or 1
+		profile.Talents[i] = self:DecodeMore(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, nil)) or 1
 	end
-	amount = self:DecodeMore(self:AddDecodedValue(inputTable, 1, protocolVersion, nil, nil)) - 1
+	amount = self:DecodeMore(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, nil)) - 1
 	profile.Disabilities = {}
 	for i = 1, amount, 1 do
-		profile.Disabilities[i] = self:DecodeMore(self:AddDecodedValue(inputTable, 1, protocolVersion, nil, nil)) or 1
+		profile.Disabilities[i] = self:DecodeMore(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, nil)) or 1
 	end
 	return profile
 end
