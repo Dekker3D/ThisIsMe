@@ -197,7 +197,51 @@ function ThisIsMe:new(o)
 		"Mordesh",
 		"Cassian Highborn",
 		"Cassian Lowborn",
-		"Mixed"
+		"Luminai"
+	}
+	
+	o.ages = {
+		"N/A",
+		"Other",
+		"Baby",
+		"Child",
+		"Teen",
+		"Young Adult",
+		"Adult",
+		"Middle-Aged",
+		"Old",
+		"Ancient",
+		"Ageless"
+	}
+	
+	o.bodyTypes = {
+		"N/A",
+		"Other",
+		"Skin And Bones",
+		"Slim",
+		"Average",
+		"Thick",
+		"Chunky",
+		"Wirey",
+		"Toned",
+		"Athletic",
+		"Muscular",
+		"Top-Heavy",
+		"Pear-Shaped",
+		"Perfect Hourglass",
+		"Barrel-Chested"
+	}
+	
+	o.heights = {
+		"N/A",
+		"Other",
+		"Tiny",
+		"Short",
+		"Below Average",
+		"Average",
+		"Above Average",
+		"Tall",
+		"Gargantuan"
 	}
 	
 	o.portraits = {
@@ -419,7 +463,7 @@ function ThisIsMe:Faction()
 		elseif factionNum  == 167 then
 			self.currentFaction = "E"
 		else
-			self.currentFaction = "?"
+			return "?"
 		end
 		if self.currentFaction ~= nil then
 			self:CheckData() -- we've got new data to check
@@ -810,6 +854,12 @@ function ThisIsMe:PopulateProfileView()
 		self:AddDropdownBox(item, self.genders, profile.Gender or 1, profile, "Gender")
 		item = self:AddProfileEntry(self.wndProfileContainer, "Race")
 		self:AddDropdownBox(item, self.races, profile.Race or 1, profile, "Race")
+		item = self:AddProfileEntry(self.wndProfileContainer, "Age")
+		self:AddDropdownBox(item, self.ages, profile.Age or 1, profile, "Age")
+		item = self:AddProfileEntry(self.wndProfileContainer, "Height")
+		self:AddDropdownBox(item, self.heights, profile.Length or 1, profile, "Length")
+		item = self:AddProfileEntry(self.wndProfileContainer, "Body Type")
+		self:AddDropdownBox(item, self.bodyTypes, profile.BodyType or 1, profile, "BodyType")
 		item = self:AddProfileEntry(self.wndProfileContainer, "Hair Length")
 		self:AddDropdownBox(item, self.hairLength[1], profile.HairLength or 1, profile, "HairLength")
 		item = self:AddProfileEntry(self.wndProfileContainer, "Hair Quality")
@@ -825,11 +875,14 @@ function ThisIsMe:PopulateProfileView()
 		end
 	else
 		self:AddProfileEntry(self.wndProfileContainer, "Name", profile.Name or self.profileCharacter or "Name")
-		if profile.Gender ~= nil and profile.Gender >= 2 then self:AddProfileEntry(self.wndProfileContainer, "Gender", self.genders[profile.Gender or 2]) end
-		if profile.Race ~= nil and profile.Race >= 2 then self:AddProfileEntry(self.wndProfileContainer, "Race", self.races[profile.Race or 2]) end
-		if profile.HairLength ~= nil and profile.HairLength >= 2 then self:AddProfileEntry(self.wndProfileContainer, "Hair Length", self.hairLength[1][profile.HairLength or 2]) end
-		if profile.HairQuality ~= nil and profile.HairQuality >= 2 then self:AddProfileEntry(self.wndProfileContainer, "Hair Quality", self.hairQuality[profile.HairQuality or 2]) end
-		if profile.HairStyle ~= nil and profile.HairStyle >= 2 then self:AddProfileEntry(self.wndProfileContainer, "Hair Style", self.hairStyle[profile.HairStyle or 2]) end
+		if profile.Gender ~= nil and profile.Gender >= 2 and self.genders[profile.Gender] ~= nil then self:AddProfileEntry(self.wndProfileContainer, "Gender", self.genders[profile.Gender or 2]) end
+		if profile.Race ~= nil and profile.Race >= 2 and self.races[profile.Race] ~= nil then self:AddProfileEntry(self.wndProfileContainer, "Race", self.races[profile.Race or 2]) end
+		if profile.Age ~= nil and profile.Age >= 2 and self.ages[profile.Age] ~= nil then self:AddProfileEntry(self.wndProfileContainer, "Age", self.ages[profile.Age or 2]) end
+		if profile.Length ~= nil and profile.Length >= 2 and self.heights[profile.Length] ~= nil then self:AddProfileEntry(self.wndProfileContainer, "Height", self.heights[profile.Length or 2]) end
+		if profile.BodyType ~= nil and profile.BodyType >= 2 and self.bodyTypes[profile.BodyType] ~= nil then self:AddProfileEntry(self.wndProfileContainer, "Body Type", self.bodyTypes[profile.BodyType or 2]) end
+		if profile.HairLength ~= nil and profile.HairLength >= 2 and self.hairLength[profile.HairLength] ~= nil then self:AddProfileEntry(self.wndProfileContainer, "Hair Length", self.hairLength[1][profile.HairLength or 2]) end
+		if profile.HairQuality ~= nil and profile.HairQuality >= 2 and self.hairQuality[profile.HairQuality] ~= nil then self:AddProfileEntry(self.wndProfileContainer, "Hair Quality", self.hairQuality[profile.HairQuality or 2]) end
+		if profile.HairStyle ~= nil and profile.HairStyle >= 2 and self.hairStyle[profile.HairStyle] ~= nil then self:AddProfileEntry(self.wndProfileContainer, "Hair Style", self.hairStyle[profile.HairStyle or 2]) end
 --		if profile.TailSize ~= nil and profile.TailSize >= 2 then self:AddProfileEntry(self.wndProfileContainer, "Tail Size", self.tailSize[profile.TailSize or 2]) end
 --		if profile.TailState ~= nil and profile.TailState >= 2 then self:AddProfileEntry(self.wndProfileContainer, "Hair Style", self.tailState[profile.TailState or 2]) end
 --		if profile.TailDecoration ~= nil and profile.TailDecoration >= 2 then self:AddProfileEntry(self.wndProfileContainer, "Tail Decoration", self.tailDecoration[profile.TailDecoration or 2]) end
@@ -1774,8 +1827,6 @@ function ThisIsMe:GetProfileDefaults(name, unit)
 	profile.Age = 1
 	profile.Race = self:GetRaceEnum(unit) or 1
 	profile.Gender = self:GetGenderEnum(unit) or 1
-	profile.Sexuality = 1
-	profile.Relationship = 1
 	profile.EyeColour = 1
 	profile.BodyType = 1
 	profile.Length = 1
@@ -1787,10 +1838,10 @@ function ThisIsMe:GetProfileDefaults(name, unit)
 	profile.TailSize = 1
 	profile.TailState = 1
 	profile.TailDecoration = 1
-	profile.Tattoos = {}
+	profile.Tattoos = {} -- body modifications
 	profile.Scars = {}
 	profile.Talents = {}
-	profile.Disabilities = {}
+	profile.Disabilities = {} -- list as physiognomy or anatomy ingame.
 	profile.FacialHair = 1
 	profile.Version = 2
 	profile.StoredVersion = 1
