@@ -769,7 +769,7 @@ function ThisIsMe:SetItem(item, name, profile)
 		item:SetSprite(listDull)
 	else
 		item:SetSprite(listBright)
-		if self.heartbeatTimers[name] == nil then self:SchedulePlayerTimeout(name) end
+		if self.heartbeatTimers == nil or self.heartbeatTimers[name] == nil then self:SchedulePlayerTimeout(name) end
 	end
 	-- give it a piece of data to refer to 
 	local wndItemText = item:FindChild("Name")
@@ -1466,7 +1466,7 @@ function ThisIsMe:EnableProfileSending()
 end
 
 function ThisIsMe:SendBasicProfile()
-	if not self.allowProfileSending then return end
+	if self.allowProfileSending == false then return end
 	self:Print(5, "Sending profile")
 	if self:Profile() ~= nil then
 		self:AddBufferedMessage("@" .. self:EncodeProfile(self:Profile()))
@@ -1483,7 +1483,7 @@ function ThisIsMe:SendBasicProfile()
 		end
 	end
 	self.allowProfileSending = false
-	self:Schedule("EnableProfileSending", 60)
+	self:ScheduleTimer("EnableProfileSending", 60)
 end
 
 function ThisIsMe:SendTextEntry(number, text)
@@ -1752,7 +1752,7 @@ function ThisIsMe:EncodeProfile(profile)
 		return nil
 	end
 	local protocolVersion = profile.ProtocolVersion or self.options.protocolVersion -- should always be filled in anyway.
-	local ret = ""
+	local ret = "" -- to add: ear/tail size/quality, hair colour, streak colour, eye colour, facial hair style
 	ret = ret .. self:EncodeMore(profile.Version or 1, 2)
 	ret = ret .. self:Encode(profile.HairStyle or 1)
 	ret = ret .. self:Encode(profile.HairLength or 1)
