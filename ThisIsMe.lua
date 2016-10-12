@@ -282,6 +282,10 @@ function ThisIsMe:new(o)
 	
 	o.defaultProtocolVersion = 4
 	
+	o.presenceMessageEnabled = true
+	o.presenceRequestMessageEnabled = true
+	o.allowProfileSending = true
+	
 	o.options = {}
 	o.options.logLevel = 0
 	o.options.debugMode = false
@@ -765,6 +769,7 @@ function ThisIsMe:SetItem(item, name, profile)
 		item:SetSprite(listDull)
 	else
 		item:SetSprite(listBright)
+		if self.heartbeatTimers[name] == nil then self:SchedulePlayerTimeout(name) end
 	end
 	-- give it a piece of data to refer to 
 	local wndItemText = item:FindChild("Name")
@@ -1308,9 +1313,19 @@ function ThisIsMe:OnMessageReceived(channel, strMessage, strSender)
 	end
 end
 
+function ThisIsMe:SchedulePlayerTimeout(player)
+	self.heartbeatTimers = self.heartbeatTimers or {}
+	if self.heartbeatTimers[strSender] ~= nil then
+		self.heartbeatTimers[strSender]:Stop()
+	end
+	self.heartbeatTimers[player] = self:ScheduleTimer("OnPlayerTimeout", 130, player)
+end
+
 function ThisIsMe:OnPlayerTimeout(player)
 	if player ~= nil then
 		self:UpdateItemByName(player)
+	else
+		self:Print(9, "Unknown player timed out. This should not happen, but probably will.")
 	end
 end
 
@@ -1319,11 +1334,7 @@ function ThisIsMe:ProcessMessage(channel, strMessage, strSender, protocolVersion
 	self.characterProfiles[strSender] = self.characterProfiles[strSender] or self:GetProfileDefaults(strSender)
 	local profile = self.characterProfiles[strSender]
 	profile.LastHeartbeatTime = os.time()
-	self.heartbeatTimers = self.heartbeatTimers or {}
-	if self.heartbeatTimers[strSender] ~= nil then
-		self.heartbeatTimers[strSender]:Stop()
-	end
-	self.heartbeatTimers[strSender] = self:ScheduleTimer("OnPlayerTimeout", 120, strSender)
+	self:SchedulePlayerTimeout(strSender)
 	self:UpdateItemByName(strSender)
 	
 	local shouldUpdate = false
@@ -1350,7 +1361,7 @@ function ThisIsMe:ProcessMessage(channel, strMessage, strSender, protocolVersion
 	if protocolVersion == nil then
 		profile.BufferedMessages = profile.BufferedMessages or {}
 		table.insert(profile.BufferedMessages, strMessage)
-		self:AddBufferedMessage("#", strSender)
+		self:SendVersionRequestMessage(strSender)
 		self:Print(1, "Unknown protocol message received from " .. strSender)
 		return
 	end
@@ -1396,8 +1407,12 @@ function ThisIsMe:sendHeartbeatMessage()
 	self:AddBufferedMessage("*") -- don't check for protocol version, previous versions will just ignore this anyway.
 end
 
+function ThisIsMe:EnablePresenceMessage()
+	self.presenceMessageEnabled = true
+end
+
 function ThisIsMe:SendPresenceMessage()
-	if self:Faction() ~= nil then
+	if self:Faction() ~= nil and self.presenceMessageEnabled ~= false then
 		local message = self:Faction()
 		if self.options.protocolVersion ~= nil then
 			message = message .. self:EncodeMore(self.options.protocolVersion, 2)
@@ -1408,22 +1423,50 @@ function ThisIsMe:SendPresenceMessage()
 		end
 		self:AddBufferedMessage(message)
 		self.announcedSelf = true
+		self.presenceMessageEnabled = false
+		self.presenceMessageTimer = self:ScheduleTimer("EnablePresenceMessage", 60)
 	end
 end
 
+function ThisIsMe:EnablePresenceRequestMessage()
+	self.presenceRequestMessageEnabled = true
+end
+
 function ThisIsMe:SendPresenceRequestMessage()
+	if self.presenceRequestMessageEnabled == false then return end
 	self:AddBufferedMessage("#")
 	if self:Faction() ~= nil then
 		self:SendPresenceMessage()
 	end
 	self.seenEveryone = true
+	self.presenceRequestMessageEnabled = false
+	self.presenceRequestMessageTimer = self:ScheduleTimer("EnablePresenceRequestMessage", 60)
+end
+
+function ThisIsMe:EnableVersionRequestMessage(player)
+	if player == nil then return end
+	self.versionRequestMessageEnabled = self.versionRequestMessageEnabled or {}
+	self.versionRequestMessageEnabled[player] = true
+end
+
+function ThisIsMe:SendVersionRequestMessage(player)
+	self.versionRequestMessageEnabled = self.versionRequestMessageEnabled or {}
+	if self.versionRequestMessageEnabled[player] == false then return end -- nil counts as true
+	self:AddBufferedMessage("#", player)
+	self.versionRequestMessageEnabled[player] = false
+	self.presenceRequestMessageTimer = self:ScheduleTimer("EnableVersionRequestMessage", 60, player)
 end
 
 function ThisIsMe:SendProfileRequestMessage(name)
 	self:AddBufferedMessage("~", name)
 end
 
+function ThisIsMe:EnableProfileSending()
+	self.allowProfileSending = true
+end
+
 function ThisIsMe:SendBasicProfile()
+	if not self.allowProfileSending then return end
 	self:Print(5, "Sending profile")
 	if self:Profile() ~= nil then
 		self:AddBufferedMessage("@" .. self:EncodeProfile(self:Profile()))
@@ -1439,6 +1482,8 @@ function ThisIsMe:SendBasicProfile()
 			end
 		end
 	end
+	self.allowProfileSending = false
+	self:Schedule("EnableProfileSending", 60)
 end
 
 function ThisIsMe:SendTextEntry(number, text)
