@@ -14,7 +14,9 @@ require "CombatFloater"
 -----------------------------------------------------------------------------------------------
 -- ThisIsMe Module Definition
 -----------------------------------------------------------------------------------------------
-local ThisIsMe = {} 
+local ThisIsMe = {}
+
+local GeminiTimer = Apollo.GetPackage("Gemini:Timer-1.0").tPackage
  
 -----------------------------------------------------------------------------------------------
 -- Constants
@@ -25,7 +27,8 @@ local kcrNormalText = ApolloColor.new("UI_BtnTextHoloNormal")
 local redErrorText = ApolloColor.new("AddonError")
 local defaultText = ApolloColor.new("UI_WindowTextDefault")
 local listDefault = "CRB_Basekit:kitInnerFrame_MetalGold_FrameBright2"
-local listSelected = "CRB_Basekit:kitInnerFrame_MetalGold_FrameBright"
+local listBright = "CRB_Basekit:kitInnerFrame_MetalGold_FrameBright"
+local listDull = "CRB_Basekit:kitInnerFrame_MetalGold_FrameDull"
  
 -----------------------------------------------------------------------------------------------
 -- Initialization
@@ -277,10 +280,15 @@ function ThisIsMe:new(o)
 	o.protocolVersionMin = 3
 	o.protocolVersionMax = 4
 	
+	o.defaultProtocolVersion = 4
+	
 	o.options = {}
 	o.options.logLevel = 0
 	o.options.debugMode = false
-	o.options.protocolVersion = 3
+	o.options.protocolVersion = o.defaultProtocolVersion
+	o.options.useDefaultProtocolVersion = true
+	
+	GeminiTimer:Embed(o)
 	
     return o
 end
@@ -293,7 +301,6 @@ function ThisIsMe:Init()
 	local bHasConfigureFunction = false
 	local strConfigureButtonText = ""
 	local tDependencies = {
-		-- "UnitOrPackageName",
 	}
     Apollo.RegisterAddon(self, bHasConfigureFunction, strConfigureButtonText, tDependencies)
 end
@@ -316,7 +323,7 @@ function ThisIsMe:OnDocLoaded()
 		if self.wndMain == nil then
 			Apollo.AddAddonErrorText(self, "Could not load the main window.")
 			return
-		end		
+		end
 		-- item list
 		self.wndProfileList = self.wndMain:FindChild("ItemList")
 	    self.wndMain:Show(false, true)
@@ -356,7 +363,7 @@ end
 ---------------------------------------------------------------------------------------------------
 
 function ThisIsMe:Print(logLevel, strToPrint)
-	if type(logLevel) == "number" and logLevel <= self.options.logLevel and self.options.debugMode == true then
+	if strToPrint ~= nil and type(logLevel) == "number" and logLevel <= self.options.logLevel and self.options.debugMode == true then
 		if self.errorBuffer then
 			table.insert(self.errorMessages, strToPrint)
 		else
@@ -365,7 +372,23 @@ function ThisIsMe:Print(logLevel, strToPrint)
 	end
 end
 
-function getCharAt(input, num)
+function ThisIsMe:PrintTable(logLevel, table)
+	for k, v in pairs(table) do
+		if type(v) == "table" then self:Print(logLevel, k .. ": table")
+		elseif type(v) == "userdata" then self:Print(logLevel, k .. ": userdata")
+		elseif type(v) == "boolean" then self:Print(logLevel, k .. ": boolean")
+		else self:Print(logLevel, k .. ": " .. v) end
+	end
+end
+
+function ThisIsMe:NilCheckString(name, value)
+	if value ~= nil then
+		return name .. " is not nil"
+	end
+	return name .. " is nil"
+end
+
+function ThisIsMe:getCharAt(input, num)
 	if input == nil or num == nil or num < 0 then
 		return nil
 	end
@@ -424,13 +447,6 @@ function ThisIsMe:GetWindowAbsolutePosition(window)
 	return {nLeft = x, nTop = y, nRight = x + position.nWidth, nBottom = y + position.nHeight, nWidth = position.nWidth, nHeight = position.nHeight}
 end
 
-function ThisIsMe:PrintNil(name, value)
-	if value ~= nil then
-		return name .. " is not nil"
-	end
-	return name .. " is nil"
-end
-
 ---------------------------------------------------------------------------------------------------
 -- Profile Functions
 ---------------------------------------------------------------------------------------------------
@@ -463,6 +479,7 @@ function ThisIsMe:Faction()
 		elseif factionNum  == 167 then
 			self.currentFaction = "E"
 		else
+			self:Print(9, "Faction unknown: " .. self:Unit():GetFaction())
 			return "?"
 		end
 		if self.currentFaction ~= nil then
@@ -620,6 +637,7 @@ function ThisIsMe:OnSave(eLevel)
 			v.PartialSnippets = nil
 		end
 	end
+	self.options.useDefaultProtocolVersion = (self.options.protocolVersion == self.defaultProtocolVersion)
 	return {characterProfiles = self.characterProfiles, options = self.options}
 end
 
@@ -652,6 +670,9 @@ function ThisIsMe:OnRestore(eLevel, tData)
 		end
 		if self.options.protocolVersion < self.protocolVersionMin then self.options.protocolVersion = self.protocolVersionMin end
 		if self.options.protocolVersion > self.protocolVersionMax then self.options.protocolVersion = self.protocolVersionMax end
+		if self.options.useDefaultProtocolVersion then
+			self.options.protocolVersion = self.defaultProtocolVersion
+		end
 		self.dataLoaded = true
 	end
 	self:CheckData()
@@ -740,13 +761,16 @@ function ThisIsMe:AddItem(name, profile)
 end
 
 function ThisIsMe:SetItem(item, name, profile)
+	if profile.LastHeartbeatTime == nil or os.difftime(os.time(), profile.LastHeartbeatTime) > 120 then
+		item:SetSprite(listDull)
+	else
+		item:SetSprite(listBright)
+	end
 	-- give it a piece of data to refer to 
 	local wndItemText = item:FindChild("Name")
 	if wndItemText then
 		wndItemText:SetText(" " .. (profile.Name or name or ""))
-		wndItemText:SetTextColor(kcrNormalText)
-		item:SetSprite(listDefault)
-	end
+		wndItemText:SetTextColor(kcrNormalText)	end
 	local wndIngameName = item:FindChild("IngameName")
 	if wndIngameName then
 		wndIngameName:SetText(" IG: " .. name)
@@ -992,8 +1016,9 @@ function ThisIsMe:AddDropdownBox(item, list, selected, table, entryName)
 		if container == nil then return end
 		for k, v in ipairs(list) do
 			local newEntry = Apollo.LoadForm(self.xmlDoc, "DropdownEntry", container, self)
-			newEntry:SetText(v)
-			newEntry:SetData({Parent = item, Table = table, Entry = entryName, Number = k})
+			local entryButton = newEntry:FindChild("DropdownEntryButton")
+			entryButton:SetText(v)
+			entryButton:SetData({Parent = item, Table = table, Entry = entryName, Number = k})
 		end
 		container:ArrangeChildrenVert()
 		return menu
@@ -1004,7 +1029,7 @@ function ThisIsMe:OnDropdownSelection( wndHandler, wndControl, eMouseButton )
 --	self:Print(1, "Pressed button")
 	local data = wndControl:GetData()
 	if data == nil or type(data) ~= "table" then return end
---	self:Print(1, "Button has data " .. self:PrintNil("parent", data.Parent) .. ", " .. self:PrintNil("number", data.Number) .. ", " .. self:PrintNil("table", data.Table) .. ", " .. self:PrintNil("entry", data.Entry))
+--	self:Print(1, "Button has data " .. self:NilCheckString("parent", data.Parent) .. ", " .. self:NilCheckString("number", data.Number) .. ", " .. self:NilCheckString("table", data.Table) .. ", " .. self:NilCheckString("entry", data.Entry))
 	if data.Parent == nil or data.Number == nil or data.Table == nil or data.Entry == nil then return end
 	local button = data.Parent:FindChild("DropdownButton")
 	if button ~= nil then
@@ -1024,7 +1049,7 @@ function ThisIsMe:OnDropdownOpen( wndHandler, wndControl, eMouseButton )
 		end
 		dropdown:Invoke()
 		local pos = self:GetWindowAbsolutePosition(wndControl)
-		dropdown:SetAnchorOffsets(pos.nLeft, pos.nBottom, pos.nLeft + pos.nWidth, pos.nBottom + 6 + numItems * 30)
+		dropdown:SetAnchorOffsets(pos.nLeft - 7, pos.nBottom, pos.nRight + 7, pos.nBottom + 14 + numItems * 36)
 		dropdown:SetAnchorPoints(0, 0, 0, 0)
 	end
 end
@@ -1283,10 +1308,23 @@ function ThisIsMe:OnMessageReceived(channel, strMessage, strSender)
 	end
 end
 
+function ThisIsMe:OnPlayerTimeout(player)
+	if player ~= nil then
+		self:UpdateItemByName(player)
+	end
+end
+
 function ThisIsMe:ProcessMessage(channel, strMessage, strSender, protocolVersion)
 	if self.characterProfiles[strSender] == nil then shouldUpdate = true end
 	self.characterProfiles[strSender] = self.characterProfiles[strSender] or self:GetProfileDefaults(strSender)
 	local profile = self.characterProfiles[strSender]
+	profile.LastHeartbeatTime = os.time()
+	self.heartbeatTimers = self.heartbeatTimers or {}
+	if self.heartbeatTimers[strSender] ~= nil then
+		self.heartbeatTimers[strSender]:Stop()
+	end
+	self.heartbeatTimers[strSender] = self:ScheduleTimer("OnPlayerTimeout", 120, strSender)
+	self:UpdateItemByName(strSender)
 	
 	local shouldUpdate = false
 	local shouldProcessBacklog = false
@@ -1296,7 +1334,7 @@ function ThisIsMe:ProcessMessage(channel, strMessage, strSender, protocolVersion
 	local shouldIgnore = (not self:AllowedProtocolVersion(protocolVersion))
 	
 	if firstCharacter == "E" or firstCharacter == "D" or firstCharacter == "?" then
-		shouldUpdate = true
+		if self.characterProfiles[strSender] == nil then shouldUpdate = true end
 		profile.Faction = firstCharacter
 		if strMessage:len() > 1 then
 			protocolVersion = self:DecodeMore(strMessage:sub(2,3))
@@ -1315,28 +1353,32 @@ function ThisIsMe:ProcessMessage(channel, strMessage, strSender, protocolVersion
 		self:AddBufferedMessage("#", strSender)
 		self:Print(1, "Unknown protocol message received from " .. strSender)
 		return
-	end	
-	if firstCharacter == "#" and not shouldIgnore then
+	end
+	if firstCharacter == "#" then
 		self:SendPresenceMessage()
-		self.seenEveryone = true
-	end
-	if firstCharacter == "@" and not shouldIgnore then
-		self.characterProfiles[strSender] = self:DecodeProfile(strMessage:sub(2, strMessage:len()), profile)
-		profile = self.characterProfiles[strSender]
-		shouldUpdate = shouldUpdate or (profile.StoredVersion ~= profile.Version)
-		profile.StoredVersion = profile.Version
-	end
-	if firstCharacter == "~" and not shouldIgnore then
-		self:SendBasicProfile()
-	end
-	if firstCharacter == "$" and not shouldIgnore then
-		self:ReceiveTextEntry(strSender, strMessage:sub(2, strMessage:len()))
 	end
 	if not shouldIgnore then
+		if firstCharacter == "@" then
+			self.characterProfiles[strSender] = self:DecodeProfile(strMessage:sub(2, strMessage:len()), profile)
+			profile = self.characterProfiles[strSender]
+			if self.characterProfiles[strSender] == nil then
+				shouldUpdate = shouldUpdate or (profile.StoredVersion ~= profile.Version)
+			else
+				self:UpdateItemByName(strSender)
+			end
+			profile.StoredVersion = profile.Version
+		end
+		if firstCharacter == "~" then
+			self:SendBasicProfile()
+		end
+		if firstCharacter == "$" then
+			self:ReceiveTextEntry(strSender, strMessage:sub(2, strMessage:len()))
+		end
 		self:ReceiveWrappedMessage(strMessage, strSender, protocolVersion)
 	end
 	
 	if shouldUpdate then self:PopulateProfileList() end
+	
 	if shouldProcessBacklog then
 		if profile.BufferedMessages ~= nil then
 			if self:AllowedProtocolVersion(protocolVersion) then
@@ -1348,6 +1390,10 @@ function ThisIsMe:ProcessMessage(channel, strMessage, strSender, protocolVersion
 			end
 		end
 	end
+end
+
+function ThisIsMe:sendHeartbeatMessage()
+	self:AddBufferedMessage("*") -- don't check for protocol version, previous versions will just ignore this anyway.
 end
 
 function ThisIsMe:SendPresenceMessage()
@@ -1445,25 +1491,25 @@ function ThisIsMe:SendWrappedMessage(text, recipient, protocolVersion)
 	local sequenceNum = 1
 	self.wrappedTextNumber = (number % 64) + 1
 	while pos <= length do
-		local chunkSize = self.messageCharacterLimit - 5
+		local chunkSize = self.messageCharacterLimit - 6
 		if pos == 1 then
-			chunkSize = self.messageCharacterLimit - 4
+			chunkSize = self.messageCharacterLimit - 5
 			local protocolVersionNum = ""
 			if self.options.protocolVersion >= 4 then
-				chunkSize = chunkSize - 3
+				chunkSize = chunkSize - 2
 				prefix = "%" .. self:Encode(number) .. self:EncodeMore(protocolVersion, 2) .. self:EncodeMore(length, 2)
 			else
 				prefix = "%" .. self:Encode(number) .. self:EncodeMore(length, 2)
 			end
 		elseif pos <= length - self.messageCharacterLimit - 4 then
-			chunkSize = self.messageCharacterLimit - 2
+			chunkSize = self.messageCharacterLimit - 3
 			if self.options.protocolVersion >= 4 then
 				prefix = "^" .. self:Encode(number) .. self:Encode(sequenceNum)
 			else
 				prefix = "^" .. self:Encode(number)
 			end
 		else
-			chunkSize = self.messageCharacterLimit - 4
+			chunkSize = self.messageCharacterLimit - 5
 			if self.options.protocolVersion >= 4 then
 				prefix = "&" .. self:Encode(number) .. self:Encode(sequenceNum) .. self:EncodeMore(length, 2)
 			else
@@ -1486,7 +1532,7 @@ function ThisIsMe:ReceiveWrappedMessage(strMessage, strSender, protocolVersion)
 		local messageID = self:Decode(strMessage:sub(2 + offset, 2 + offset))
 		if protocolVersion >= 4 and firstCharacter ~= "%" then
 			local sequenceNum = self:Decode(strMessage:sub(3 + offset, 3 + offset))
-			if sequenceNum ~= ((profile.WrappedMessages[messageID].LastSequenceNum or 1) % 64) + 1 then
+			if profile.WrappedMessages[messageID] == nil or profile.WrappedMessages[messageID].LastSequenceNum == nil or sequenceNum ~= ((profile.WrappedMessages[messageID].LastSequenceNum) % 64) + 1 then
 				profile.WrappedMessages[messageID] = nil -- message received out of sequence
 				return
 			end
@@ -1543,7 +1589,7 @@ function ThisIsMe:CheckUnknownProtocol(protocolVersion, sender)
 end
 
 function ThisIsMe:OnTimer()
-	self.messageLoop()
+	self:messageLoop()
 end
 
 function ThisIsMe:messageLoop()
@@ -1553,7 +1599,7 @@ function ThisIsMe:messageLoop()
 	else
 		if #self.messageQueue > 0 then
 			local handled = false
-			if self.messageQueue[1].Message == nil then handled = true 
+			if self.messageQueue[1].Message == nil then handled = true
 			elseif self.messageQueue[1].Message:len() > self.messageCharacterLimit or self.messageQueue[1].ProtocolVersion ~= self.options.protocolVersion then
 				handled = true
 				self:SendWrappedMessage(self.messageQueue[1].Message, self.messageQueue[1].Recipient, self.messageQueue[1].ProtocolVersion or self.options.protocolVersion)
@@ -1588,6 +1634,8 @@ function ThisIsMe:SendMessage(message, recipient)
 	if recipient == nil then
 		if self.Comm:SendMessage(message) then
 			self:Print(5, "Message Sent: " .. message)
+			if self.heartBeatTimer ~= nil then self.heartBeatTimer:Stop() end
+			self.heartBeatTimer = ApolloTimer.Create(60.0, true, "sendHeartbeatMessage", self)
 			return true
 		end
 	else
@@ -1714,7 +1762,7 @@ function ThisIsMe:DecodeProfilev1(input, profile)
 	local offset = 0
 	for i = 1, input:len(), 1 do
 		local actualNum = i + offset
-		local char = getCharAt(input, actualNum)
+		local char = self:getCharAt(input, actualNum)
 		local protocolOffset1 = 0
 		if protocolVersion >= 2 then protocolOffset1 = 1 end
 		if char ~= nil then
@@ -1738,28 +1786,28 @@ function ThisIsMe:DecodeProfilev1(input, profile)
 				profile.Scars = {}
 				local amount = self:Decode(char) - 1
 				for j = 1, amount, 1 do
-					profile.Scars[j] = self:Decode(getCharAt(input, actualNum + j))
+					profile.Scars[j] = self:Decode(self:getCharAt(input, actualNum + j))
 				end
 				offset = offset + amount
 			elseif i == 15 + protocolOffset1 then
 				profile.Tattoos = {}
 				local amount = self:Decode(char) - 1
 				for j = 1, amount, 1 do
-					profile.Tattoos[j] = self:Decode(getCharAt(input, actualNum + j))
+					profile.Tattoos[j] = self:Decode(self:getCharAt(input, actualNum + j))
 				end
 				offset = offset + amount
 			elseif i == 16 + protocolOffset1 then
 				profile.Talents = {}
 				local amount = self:Decode(char) - 1
 				for j = 1, amount, 1 do
-					profile.Talents[j] = self:Decode(getCharAt(input, actualNum + j))
+					profile.Talents[j] = self:Decode(self:getCharAt(input, actualNum + j))
 				end
 				offset = offset + amount
 			elseif i == 17 + protocolOffset1 then
 				profile.Disabilities = {}
 				local amount = self:Decode(char) - 1
 				for j = 1, amount, 1 do
-					profile.Disabilities[j] = self:Decode(getCharAt(input, actualNum + j))
+					profile.Disabilities[j] = self:Decode(self:getCharAt(input, actualNum + j))
 				end
 				offset = offset + amount
 			end

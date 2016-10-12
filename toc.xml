@@ -2,4 +2,5 @@
 <Addon Author="Dekker3D" APIVersion="13" Name="ThisIsMe" Description="Shares RP profiles" Version="0.1">
     <Script Name="ThisIsMe.lua"/>
     <Form Name="ThisIsMe.xml"/>
+    <Script Name="Libs\GeminiTimer-1.0.lua"/>
 </Addon>
