@@ -15,8 +15,6 @@ require "CombatFloater"
 -- ThisIsMe Module Definition
 -----------------------------------------------------------------------------------------------
 local ThisIsMe = {}
-
-local GeminiTimer = Apollo.GetPackage("Gemini:Timer-1.0").tPackage
  
 -----------------------------------------------------------------------------------------------
 -- Constants
@@ -292,8 +290,6 @@ function ThisIsMe:new(o)
 	o.options.protocolVersion = o.defaultProtocolVersion
 	o.options.useDefaultProtocolVersion = true
 	
-	GeminiTimer:Embed(o)
-	
     return o
 end
 
@@ -305,6 +301,7 @@ function ThisIsMe:Init()
 	local bHasConfigureFunction = false
 	local strConfigureButtonText = ""
 	local tDependencies = {
+		"Gemini:Timer-1.0"
 	}
     Apollo.RegisterAddon(self, bHasConfigureFunction, strConfigureButtonText, tDependencies)
 end
@@ -313,6 +310,8 @@ function ThisIsMe:OnLoad()
     -- load our form file
 	self.xmlDoc = XmlDoc.CreateFromFile("ThisIsMe.xml")
 	self.xmlDoc:RegisterCallback("OnDocLoaded", self)
+	GeminiTimer = Apollo.GetPackage("Gemini:Timer-1.0").tPackage
+	GeminiTimer:Embed(self)
 end
 
 function ThisIsMe:OnDocLoaded()
