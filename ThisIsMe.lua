@@ -483,7 +483,7 @@ function ThisIsMe:Faction()
 		elseif factionNum  == 167 then
 			self.currentFaction = "E"
 		else
-			self:Print(9, "Faction unknown: " .. self:Unit():GetFaction())
+			self:Print(9, "Faction unknown: " .. (factionNum or "nil"))
 			return "?"
 		end
 		if self.currentFaction ~= nil then
@@ -734,6 +734,11 @@ function ThisIsMe:PopulateProfileList()
 	if testButton then
 		testButton:Show(self.options.debugMode == true, true)
 	end
+	
+	local filtersButton = self.wndMain:FindChild("FiltersButton")
+	if filtersButton then
+		filtersButton:Show(self.options.debugMode == true, true)
+	end
 end
 
 -- clear the item list
@@ -881,20 +886,28 @@ function ThisIsMe:PopulateProfileView()
 		
 		item = self:AddProfileEntry(self.wndProfileContainer, "Gender")
 		self:AddDropdownBox(item, self.genders, profile.Gender or 1, profile, "Gender")
+		if self.options.debugMode then self:AddSubButtons(item, true) end
 		item = self:AddProfileEntry(self.wndProfileContainer, "Race")
 		self:AddDropdownBox(item, self.races, profile.Race or 1, profile, "Race")
+		if self.options.debugMode then self:AddSubButtons(item, true) end
 		item = self:AddProfileEntry(self.wndProfileContainer, "Age")
 		self:AddDropdownBox(item, self.ages, profile.Age or 1, profile, "Age")
+		if self.options.debugMode then self:AddSubButtons(item, true) end
 		item = self:AddProfileEntry(self.wndProfileContainer, "Height")
 		self:AddDropdownBox(item, self.heights, profile.Length or 1, profile, "Length")
+		if self.options.debugMode then self:AddSubButtons(item, true) end
 		item = self:AddProfileEntry(self.wndProfileContainer, "Body Type")
 		self:AddDropdownBox(item, self.bodyTypes, profile.BodyType or 1, profile, "BodyType")
+		if self.options.debugMode then self:AddSubButtons(item, true) end
 		item = self:AddProfileEntry(self.wndProfileContainer, "Hair Length")
 		self:AddDropdownBox(item, self.hairLength[1], profile.HairLength or 1, profile, "HairLength")
+		if self.options.debugMode then self:AddSubButtons(item, true) end
 		item = self:AddProfileEntry(self.wndProfileContainer, "Hair Quality")
 		self:AddDropdownBox(item, self.hairQuality, profile.HairQuality or 1, profile, "HairQuality")
+		if self.options.debugMode then self:AddSubButtons(item, true) end
 		item = self:AddProfileEntry(self.wndProfileContainer, "Hair Style")
 		self:AddDropdownBox(item, self.hairStyle, profile.HairStyle or 1, profile, "HairStyle")
+		if self.options.debugMode then self:AddSubButtons(item, true) end
 		
 		item = self:AddProfileEntry(self.wndProfileContainer, "Extra")
 		if profile.Snippets ~= nil then
@@ -902,6 +915,7 @@ function ThisIsMe:PopulateProfileView()
 		else
 			self:AddMessageTextBox(item, "", 2)
 		end
+		if self.options.debugMode then self:AddSubButtons(item, false) end
 	else
 		self:AddProfileEntry(self.wndProfileContainer, "Name", profile.Name or self.profileCharacter or "Name")
 		if profile.Gender ~= nil and profile.Gender >= 2 and self.genders[profile.Gender] ~= nil then self:AddProfileEntry(self.wndProfileContainer, "Gender", self.genders[profile.Gender or 2]) end
@@ -949,6 +963,29 @@ function ThisIsMe:AddProfileEntry(parent, entryName, defaultText)
 	local optionFrame = item:FindChild("OptionFrame")
 	optionFrame:SetText(defaultText or "")
 	return item
+end
+
+function ThisIsMe:AddSubButtons(item, readonly)
+	if item == nil then return end
+	local wndButtonsFrame = item:FindChild("ButtonsWindow")
+	local wndButtonsContainer = item:FindChild("ButtonsContainer")
+	local wndOptionsFrame = item:FindChild("OptionFrame")
+	if not (wndButtonsFrame and wndButtonsContainer and wndOptionsFrame) then return end
+	wndButtonsFrame:Show(true, true)
+	
+	local left, top, right, bottom = wndOptionsFrame:GetAnchorOffsets()
+	right = -95
+	if readonly then right = -35 end
+	wndOptionsFrame:SetAnchorOffsets(left, top, right, bottom)
+	left, top, right, bottom = wndButtonsFrame:GetAnchorOffsets()
+	left = -92
+	if readonly then left = -32 end
+	wndButtonsFrame:SetAnchorOffsets(left, top, right, bottom)
+	
+	wndButtonsContainer:FindChild("UpButton"):Show(not readonly, true)
+	wndButtonsContainer:FindChild("DownButton"):Show(not readonly, true)
+	wndButtonsContainer:FindChild("RemoveButton"):Show(not readonly, true)
+	wndButtonsContainer:ArrangeChildrenHorz()
 end
 
 function ThisIsMe:AddTextBox(item, defaultText, variableName)
@@ -1195,7 +1232,7 @@ end
 
 function ThisIsMe:SetNewOptions(newOptions)
 	self.options.logLevel = newOptions.logLevel or self.options.logLevel
-	self.options.debugMode = newOptions.debugMode or self.options.debugMode
+	if self.newOptions.debugMode ~= nil then self.options.debugMode = newOptions.debugMode end
 	if newOptions.protocolVersion ~= self.options.protocolVersion then
 		newOptions.protocolVersion = self:Clamp(newOptions.protocolVersion, self.protocolVersionMin, self.protocolVersionMax)
 		if newOptions.protocolVersion ~= self.options.protocolVersion then
@@ -1577,9 +1614,17 @@ function ThisIsMe:ReceiveWrappedMessage(strMessage, strSender, protocolVersion)
 		local messageID = self:Decode(strMessage:sub(2 + offset, 2 + offset))
 		if protocolVersion >= 4 and firstCharacter ~= "%" then
 			local sequenceNum = self:Decode(strMessage:sub(3 + offset, 3 + offset))
-			if profile.WrappedMessages[messageID] == nil or profile.WrappedMessages[messageID].LastSequenceNum == nil or sequenceNum ~= ((profile.WrappedMessages[messageID].LastSequenceNum) % 64) + 1 then
+			if profile.WrappedMessages[messageID] == nil or profile.WrappedMessages[messageID].LastSequenceNum == nil then
 				profile.WrappedMessages[messageID] = nil -- message received out of sequence
+				self:Print(1, "Wrapped message received out of sequence; discarded")
 				return
+			else
+				local expectedSequenceNum = ((profile.WrappedMessages[messageID].LastSequenceNum) % 64) + 1
+				if sequenceNum ~= expectedSequenceNum then
+					profile.WrappedMessages[messageID] = nil -- message received out of sequence
+					self:Print(1, "Wrapped message received out of sequence: " .. sequenceNum .. " instead of " .. expectedSequenceNum .. "; discarded")
+					return
+				end
 			end
 			offset = offset + 1
 		end
@@ -1602,6 +1647,7 @@ function ThisIsMe:ReceiveWrappedMessage(strMessage, strSender, protocolVersion)
 			local content = strMessage:sub(3 + offset, strMessage:len())
 			profile.WrappedMessages[messageID] = profile.WrappedMessages[messageID] or {}
 			profile.WrappedMessages[messageID].Content = (profile.WrappedMessages[messageID].Content or "") .. content
+			profile.WrappedMessages[messageID].LastSequenceNum = ((profile.WrappedMessages[messageID].LastSequenceNum) % 64) + 1
 		end
 		if firstCharacter == "&" then
 			local length = self:DecodeMore(strMessage:sub(3 + offset, 4 + offset))
