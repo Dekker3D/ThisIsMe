@@ -245,6 +245,16 @@ function ThisIsMe:new(o)
 		"Gargantuan"
 	}
 	
+	o.sortModes = {
+		"Newest First",
+		"By Character Name",
+		"By Customized Name"
+	}
+	
+	o.sortMode = 1
+	o.sortInvert = false
+	o.sortByOnline = true
+	
 	o.portraits = {
 		["3"]={"charactercreate:sprCharC_Finalize_RaceAurinM", "charactercreate:sprCharC_Finalize_RaceAurinF"},
 		["5"]={"charactercreate:sprCharC_Finalize_RaceDrakenM", "charactercreate:sprCharC_Finalize_RaceDrakenF"},
@@ -279,10 +289,6 @@ function ThisIsMe:new(o)
 	o.protocolVersionMax = 4
 	
 	o.defaultProtocolVersion = 4
-	
-	o.presenceMessageEnabled = true
-	o.presenceRequestMessageEnabled = true
-	o.allowProfileSending = true
 	
 	o.options = {}
 	o.options.logLevel = 0
@@ -638,6 +644,7 @@ function ThisIsMe:OnSave(eLevel)
 		for k, v in pairs(self.characterProfiles) do
 			v.ProtocolVersion = nil
 			v.PartialSnippets = nil
+			v.Online = nil
 		end
 	end
 	self.options.useDefaultProtocolVersion = (self.options.protocolVersion == self.defaultProtocolVersion)
@@ -687,18 +694,17 @@ end
 
 function ThisIsMe:OnTestClick( wndHandler, wndControl, eMouseButton )
 	local profile = self:GetProfileDefaults("Test", nil)
-	profile.Race = 3
+	profile.Race = 6
 	profile.Gender = 4
-	profile.HairQuality = 6
-	profile.ProtocolVersion = 2
+	profile.ProtocolVersion = 4
 	self:DecodeProfile(self:EncodeProfile(profile), self:GetProfileDefaults("Test2", nil))
-	self:Print(9, "Race: " .. profile.Race .. ", gender: " .. profile.Gender .. ", hair quality: " .. profile.HairQuality)
+	self:Print(9, "Race: " .. profile.Race .. ", gender: " .. profile.Gender)
 end
 
 -----------------------------------------------------------------------------------------------
 -- ProfileList Functions
 -----------------------------------------------------------------------------------------------
-function ProfileSort(profile1, profile2)
+function ThisIsMe:ProfileSort(profile1, profile2)
 	if profile1 == nil then
 		if profile2 == nil then
 			return false
@@ -706,11 +712,18 @@ function ProfileSort(profile1, profile2)
 		return false
 	end
 	if profile2 == nil then return false end
+	if self.sortByOnline then
+		local p1online = self:IsPlayerOnline(profile1.Name)
+		local p2online = self:IsPlayerOnline(profile2.Name)
+		if p1online and not p2online then return true end
+		if p2online and not p1online then return false end
+	end
 	return profile1.Name < profile2.Name
 end
 
 -- populate profile list
 function ThisIsMe:PopulateProfileList()
+	local position = self.wndProfileList:GetVScrollPos()
 	-- make sure the profile list is empty to start with
 	self:DestroyProfileList()
 	
@@ -718,10 +731,10 @@ function ThisIsMe:PopulateProfileList()
 	local ordered = {}
 	for k, v in pairs(self.characterProfiles) do
 		if k ~= nil and v ~= nil then
-			table.insert(ordered, {Name=k, Profile=v})
+			table.insert(ordered, {Name=k, Profile=v, SortFunction="ProfileSort", SortTable=self})
 		end
 	end
-	table.sort(ordered, ProfileSort)
+	table.sort(ordered, function(a,b) return a.SortTable[a.SortFunction](a.SortTable, a, b) end)
 	for k, v in ipairs(ordered) do
         self:AddItem(v.Name, v.Profile)
 	end
@@ -738,6 +751,7 @@ function ThisIsMe:PopulateProfileList()
 	if filtersButton then
 		filtersButton:Show(self.options.debugMode == true, true)
 	end
+	self.wndProfileList:SetVScrollPos(position)
 end
 
 -- clear the item list
@@ -769,12 +783,12 @@ function ThisIsMe:AddItem(name, profile)
 end
 
 function ThisIsMe:SetItem(item, name, profile)
-	if profile.LastHeartbeatTime == nil or os.difftime(os.time(), profile.LastHeartbeatTime) > 120 then
-		item:SetSprite(listDull)
-	else
+	if self:IsPlayerOnline(name) then
 		item:SetSprite(listBright)
-		if self.heartbeatTimers == nil or self.heartbeatTimers[name] == nil then self:SchedulePlayerTimeout(name) end
+	else
+		item:SetSprite(listDull)
 	end
+	if self.heartbeatTimers == nil or self.heartbeatTimers[name] == nil then self:SchedulePlayerTimeout(name) end
 	-- give it a piece of data to refer to 
 	local wndItemText = item:FindChild("Name")
 	if wndItemText then
@@ -1352,28 +1366,52 @@ end
 function ThisIsMe:SchedulePlayerTimeout(player)
 	self.heartbeatTimers = self.heartbeatTimers or {}
 	if self.heartbeatTimers[strSender] ~= nil then
-		self.heartbeatTimers[strSender]:Stop()
+		self:CancelTimer(self.heartbeatTimers[strSender], true)
 	end
 	self.heartbeatTimers[player] = self:ScheduleTimer("OnPlayerTimeout", 130, player)
 end
 
 function ThisIsMe:OnPlayerTimeout(player)
 	if player ~= nil then
-		self:UpdateItemByName(player)
+		self:UpdateOnlineStatus(player)
 	else
 		self:Print(9, "Unknown player timed out. This should not happen, but probably will.")
 	end
 end
 
+function ThisIsMe:UpdateOnlineStatus(player)
+	if player == nil then return end
+	local profile = self.characterProfiles[player]
+	local online = nil
+	if profile.LastHeartbeatTime == nil or os.difftime(os.time(), profile.LastHeartbeatTime) > 120 then
+		online = false
+	else
+		online = true
+	end
+	if profile.Online ~= online then
+		if self.sortByOnline then
+			self:PopulateProfileList()
+		else
+			self:UpdateItemByName(player)
+		end
+	end
+	profile.Online = online
+end
+
+function ThisIsMe:IsPlayerOnline(player)
+	return self.characterProfiles[player].Online
+end
+
 function ThisIsMe:ProcessMessage(channel, strMessage, strSender, protocolVersion)
+	local shouldUpdate = false
 	if self.characterProfiles[strSender] == nil then shouldUpdate = true end
 	self.characterProfiles[strSender] = self.characterProfiles[strSender] or self:GetProfileDefaults(strSender)
 	local profile = self.characterProfiles[strSender]
 	profile.LastHeartbeatTime = os.time()
+	self:UpdateOnlineStatus(strSender)
 	self:SchedulePlayerTimeout(strSender)
 	self:UpdateItemByName(strSender)
 	
-	local shouldUpdate = false
 	local shouldProcessBacklog = false
 	
 	local firstCharacter = strMessage:sub(1,1)
@@ -1388,6 +1426,7 @@ function ThisIsMe:ProcessMessage(channel, strMessage, strSender, protocolVersion
 			profile.ProtocolVersion = protocolVersion
 			if self:AllowedProtocolVersion(protocolVersion) then
 				local newVersion = self:DecodeMore(strMessage:sub(4,5))
+				if profile.Version ~= newVersion and protocolVersion >= 4 then self:SendProfileRequestMessage(strSender) end
 				profile.Version = newVersion
 			end
 		end
@@ -1445,52 +1484,58 @@ end
 
 function ThisIsMe:EnablePresenceMessage()
 	self.presenceMessageEnabled = true
+	if self.presenceMessageQueued == true then
+		self.presenceMessageQueued = false
+		self:SendPresenceMessage()
+	end
 end
 
 function ThisIsMe:SendPresenceMessage()
-	if self:Faction() ~= nil and self.presenceMessageEnabled ~= false then
-		local message = self:Faction()
-		if self.options.protocolVersion ~= nil then
-			message = message .. self:EncodeMore(self.options.protocolVersion, 2)
-		end
-		if self.characterProfiles[self:Character()] == nil then self.characterProfiles[self:Character()] = self:GetProfileDefaults(self:Character(), self:Unit()) end
-		if self.characterProfiles[self:Character()].Version ~= nil then
-			message = message .. self:EncodeMore(self.characterProfiles[self:Character()].Version, 2)
-		end
-		self:AddBufferedMessage(message)
-		self.announcedSelf = true
-		self.presenceMessageEnabled = false
-		self.presenceMessageTimer = self:ScheduleTimer("EnablePresenceMessage", 60)
+	if self.presenceMessageEnabled == false then
+		self.presenceMessageQueued = true
+		return
 	end
-end
-
-function ThisIsMe:EnablePresenceRequestMessage()
-	self.presenceRequestMessageEnabled = true
+	local message = self:Faction()
+	if self.options.protocolVersion ~= nil then
+		message = message .. self:EncodeMore(self.options.protocolVersion, 2)
+	end
+	if self.characterProfiles[self:Character()] == nil then self.characterProfiles[self:Character()] = self:GetProfileDefaults(self:Character(), self:Unit()) end
+	if self.characterProfiles[self:Character()].Version ~= nil then
+		message = message .. self:EncodeMore(self.characterProfiles[self:Character()].Version, 2)
+	end
+	self:AddBufferedMessage(message)
+	self.announcedSelf = true
+	self.presenceMessageEnabled = false
+	self.presenceMessageTimer = self:ScheduleTimer("EnablePresenceMessage", 10)
 end
 
 function ThisIsMe:SendPresenceRequestMessage()
-	if self.presenceRequestMessageEnabled == false then return end
 	self:AddBufferedMessage("#")
-	if self:Faction() ~= nil then
-		self:SendPresenceMessage()
-	end
+	self:SendPresenceMessage()
 	self.seenEveryone = true
-	self.presenceRequestMessageEnabled = false
-	self.presenceRequestMessageTimer = self:ScheduleTimer("EnablePresenceRequestMessage", 60)
 end
 
 function ThisIsMe:EnableVersionRequestMessage(player)
 	if player == nil then return end
 	self.versionRequestMessageEnabled = self.versionRequestMessageEnabled or {}
 	self.versionRequestMessageEnabled[player] = true
+	self.versionRequestMessageQueued = self.versionRequestMessageQueued or {}
+	if self.versionRequestMessageQueued[player] == true then
+		self.versionRequestMessageQueued[player] = false
+		self:SendVersionRequestMessage(player)
+	end
 end
 
 function ThisIsMe:SendVersionRequestMessage(player)
 	self.versionRequestMessageEnabled = self.versionRequestMessageEnabled or {}
-	if self.versionRequestMessageEnabled[player] == false then return end -- nil counts as true
+	if self.versionRequestMessageEnabled[player] == false then
+		self.versionRequestMessageQueued = self.versionRequestMessageQueued or {}
+		self.versionRequestMessageQueued[player] = true
+		return
+	end -- nil counts as true
 	self:AddBufferedMessage("#", player)
 	self.versionRequestMessageEnabled[player] = false
-	self.presenceRequestMessageTimer = self:ScheduleTimer("EnableVersionRequestMessage", 60, player)
+	self.presenceRequestMessageTimer = self:ScheduleTimer("EnableVersionRequestMessage", 10, player)
 end
 
 function ThisIsMe:SendProfileRequestMessage(name)
@@ -1499,9 +1544,24 @@ end
 
 function ThisIsMe:EnableProfileSending()
 	self.allowProfileSending = true
+	if self.profileSendingQueued == true then
+		self:SendBasicProfileDelayed()
+		self.profileSendingQueued = false
+	end
 end
 
 function ThisIsMe:SendBasicProfile()
+	if self.allowProfileSending == false then
+		self.profileSendingQueued = true
+		return
+	end
+	if self.ProfileSendingCountdown ~= nil then
+		self:CancelTimer(self.ProfileSendingCountdown, true)
+	end
+	self.ProfileSendingCountdown = self:ScheduleTimer("SendBasicProfileDelayed", 2)
+end
+
+function ThisIsMe:SendBasicProfileDelayed()
 	if self.allowProfileSending == false then return end
 	self:Print(5, "Sending profile")
 	if self:Profile() ~= nil then
@@ -1519,7 +1579,7 @@ function ThisIsMe:SendBasicProfile()
 		end
 	end
 	self.allowProfileSending = false
-	self:ScheduleTimer("EnableProfileSending", 60)
+	self:ScheduleTimer("EnableProfileSending", #self.messageQueue)
 end
 
 function ThisIsMe:SendTextEntry(number, text)
