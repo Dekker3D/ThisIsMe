@@ -59,20 +59,13 @@ function ThisIsMe:new(o)
 	}
 	
 	o.hairLength = {
-		{"N/A",
+		"N/A",
 		"Other",
 		"Bald",
-		"Short",
-		"Shoulder-Length",
-		"Waist-Length",
-		"Ass-Length"},
-		{"N/A",
-		"Other",
-		"Bald",
-		"Small",
-		"Medium",
-		"Large",
-		"Huge"}
+		"Short/Small",
+		"Shoulder-Length/Medium",
+		"Waist-Length/Large",
+		"Hip-Length/Huge"
 	}
 	
 	o.hairQuality = {
@@ -518,6 +511,7 @@ function ThisIsMe:CheckData()
 		else
 			self:Print(9, "Profile found; Name: " .. self.currentCharacter)
 		end
+		self.characterProfiles[self.currentCharacter].Online = true
 		self.profileEmptyCheck = true
 		self:Print(9, "Checked profile for content.")
 	end
@@ -631,6 +625,7 @@ end
 function ThisIsMe:OnProfileOK()
 	if self.profileEdit == true and  self.editedProfile ~= nil and not self:CompareTableEqualBoth(self.characterProfiles[self:Character()], self.editedProfile) then
 		self.characterProfiles[self:Character()] = self.editedProfile
+		self.currentProfile = self.editedProfile
 		self:SendPresenceMessage()
 	end
 	self:OpenProfileList()
@@ -913,7 +908,7 @@ function ThisIsMe:PopulateProfileView()
 		self:AddDropdownBox(item, self.bodyTypes, profile.BodyType or 1, profile, "BodyType")
 		if self.options.debugMode then self:AddSubButtons(item, true) end
 		item = self:AddProfileEntry(self.wndProfileContainer, "Hair Length")
-		self:AddDropdownBox(item, self.hairLength[1], profile.HairLength or 1, profile, "HairLength")
+		self:AddDropdownBox(item, self.hairLength, profile.HairLength or 1, profile, "HairLength")
 		if self.options.debugMode then self:AddSubButtons(item, true) end
 		item = self:AddProfileEntry(self.wndProfileContainer, "Hair Quality")
 		self:AddDropdownBox(item, self.hairQuality, profile.HairQuality or 1, profile, "HairQuality")
@@ -936,7 +931,7 @@ function ThisIsMe:PopulateProfileView()
 		if profile.Age ~= nil and profile.Age >= 2 and self.ages[profile.Age] ~= nil then self:AddProfileEntry(self.wndProfileContainer, "Age", self.ages[profile.Age or 2]) end
 		if profile.Length ~= nil and profile.Length >= 2 and self.heights[profile.Length] ~= nil then self:AddProfileEntry(self.wndProfileContainer, "Height", self.heights[profile.Length or 2]) end
 		if profile.BodyType ~= nil and profile.BodyType >= 2 and self.bodyTypes[profile.BodyType] ~= nil then self:AddProfileEntry(self.wndProfileContainer, "Body Type", self.bodyTypes[profile.BodyType or 2]) end
-		if profile.HairLength ~= nil and profile.HairLength >= 2 and self.hairLength[profile.HairLength] ~= nil then self:AddProfileEntry(self.wndProfileContainer, "Hair Length", self.hairLength[1][profile.HairLength or 2]) end
+		if profile.HairLength ~= nil and profile.HairLength >= 2 and self.hairLength[profile.HairLength] ~= nil then self:AddProfileEntry(self.wndProfileContainer, "Hair Length", self.hairLength[profile.HairLength or 2]) end
 		if profile.HairQuality ~= nil and profile.HairQuality >= 2 and self.hairQuality[profile.HairQuality] ~= nil then self:AddProfileEntry(self.wndProfileContainer, "Hair Quality", self.hairQuality[profile.HairQuality or 2]) end
 		if profile.HairStyle ~= nil and profile.HairStyle >= 2 and self.hairStyle[profile.HairStyle] ~= nil then self:AddProfileEntry(self.wndProfileContainer, "Hair Style", self.hairStyle[profile.HairStyle or 2]) end
 --		if profile.TailSize ~= nil and profile.TailSize >= 2 then self:AddProfileEntry(self.wndProfileContainer, "Tail Size", self.tailSize[profile.TailSize or 2]) end
@@ -1383,7 +1378,7 @@ function ThisIsMe:UpdateOnlineStatus(player)
 	if player == nil then return end
 	local profile = self.characterProfiles[player]
 	local online = nil
-	if profile.LastHeartbeatTime == nil or os.difftime(os.time(), profile.LastHeartbeatTime) > 120 then
+	if (profile.LastHeartbeatTime == nil or os.difftime(os.time(), profile.LastHeartbeatTime) > 120) and player ~= self:Character() then
 		online = false
 	else
 		online = true
