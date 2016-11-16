@@ -1,0 +1,3 @@
+[submodule "LibCommExt"]
+	path = LibCommExt
+	url = https://github.com/Dekker3D/LibCommExt.git
