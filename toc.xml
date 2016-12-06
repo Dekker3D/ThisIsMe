@@ -3,4 +3,5 @@
     <Script Name="ThisIsMe.lua"/>
     <Form Name="ThisIsMe.xml"/>
     <Script Name="Libs\GeminiTimer-1.0.lua"/>
+    <Script Name="LibCommExt\LibCommExt.lua"/>
 </Addon>

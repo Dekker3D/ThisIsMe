@@ -15,6 +15,7 @@ require "CombatFloater"
 -- ThisIsMe Module Definition
 -----------------------------------------------------------------------------------------------
 local ThisIsMe = {}
+local LibCommExt = nil
 local ProfileWindow = {}
 local ThisIsMeInst = nil
  
@@ -37,15 +38,14 @@ local portraitNeutral = ApolloColor.new(1.2, 0.9, 1, 1)
 -- Initialization
 -----------------------------------------------------------------------------------------------
 function ThisIsMe:new(o)
-	o = o or {}
-	setmetatable(o, self)
-	self.__index = self 
-	
-	-- initialize variables here
+    o = o or {}
+    setmetatable(o, self)
+    self.__index = self 
+
+    -- initialize variables here
 	o.profileListEntries = {} -- keep track of all the list items
 	o.characterProfiles = {}
-	
-	o.messageQueue = {}
+	o.sortedCharacterProfiles = {}
 	
 	o.seenEveryone = false
 		
@@ -66,10 +66,10 @@ function ThisIsMe:new(o)
 		"N/A",
 		"Other",
 		"Bald",
-		"Short/small",
-		"Shoulder-Length/medium",
-		"Waist-Length/large",
-		"Ass-Length/huge"
+		"Short/Small",
+		"Shoulder-Length/Medium",
+		"Waist-Length/Large",
+		"Hip-Length/Huge"
 	}
 	
 	o.hairQuality = {
@@ -286,6 +286,8 @@ function ThisIsMe:new(o)
 	o.protocolVersionMin = 1
 	o.protocolVersionMax = 4
 	
+	o.profileRequestBuffer = {}
+	
 	o.defaultProtocolVersion = 4
 	
 	o.options = {}
@@ -332,7 +334,8 @@ function ThisIsMe:Init()
 	local bHasConfigureFunction = false
 	local strConfigureButtonText = ""
 	local tDependencies = {
-		"Gemini:Timer-1.0"
+		"Gemini:Timer-1.0",
+		"LibCommExt-1.0"
 	}
     Apollo.RegisterAddon(self, bHasConfigureFunction, strConfigureButtonText, tDependencies)
 end
@@ -343,6 +346,7 @@ function ThisIsMe:OnLoad()
 	self.xmlDoc:RegisterCallback("OnDocLoaded", self)
 	GeminiTimer = Apollo.GetPackage("Gemini:Timer-1.0").tPackage
 	GeminiTimer:Embed(self)
+	LibCommExt = Apollo.GetPackage("LibCommExt-1.0").tPackage
 end
 
 function ThisIsMe:OnDocLoaded()
@@ -696,21 +700,26 @@ function ThisIsMe:OnRestore(eLevel, tData)
 			if next(tData.characterProfiles) ~= nil then
 				self.characterProfiles = {}
 				for k, v in pairs(tData.characterProfiles) do
-					local addTextMap = false
-					if v.TextMap == nil then
-						addTextMap = true
-					end
-					self.characterProfiles[k] = self:CopyTable(v, self:GetProfileDefaults(k))
-					self.characterProfiles[k].ProtocolVersion = nil
-					if self.characterProfiles[k].Messages ~= nil then
-						if self.characterProfiles[k].Snippets == nil then
-							self.characterProfiles[k].Snippets = self.characterProfiles[k].Messages
+					--if v.Persist == nil then
+						v.Persist = not self:IsProfileDefault(v)
+					--end
+					if v.Persist == true then
+						local addTextMap = false
+						if v.TextMap == nil then
+							addTextMap = true
 						end
-						self.characterProfiles[k].Messages = nil
-					end
-					if addTextMap then
-						self.characterProfiles[k].TextMap = self:GetDefaultTextMap()
-						self.characterProfiles[k].Snippets[3] = "Extra"
+						self.characterProfiles[k] = self:CopyTable(v, self:GetProfileDefaults(k))
+						self.characterProfiles[k].ProtocolVersion = nil
+						if self.characterProfiles[k].Messages ~= nil then
+							if self.characterProfiles[k].Snippets == nil then
+								self.characterProfiles[k].Snippets = self.characterProfiles[k].Messages
+							end
+							self.characterProfiles[k].Messages = nil
+						end
+						if addTextMap then
+							self.characterProfiles[k].TextMap = self:GetDefaultTextMap()
+							self.characterProfiles[k].Snippets[3] = "Extra"
+						end
 					end
 				end
 			end
@@ -767,6 +776,7 @@ end
 
 -- populate profile list
 function ThisIsMe:PopulateProfileList()
+	if self.wndProfileList == nil then return end
 	local position = self.wndProfileList:GetVScrollPos()
 	-- make sure the profile list is empty to start with
 	self:DestroyProfileList()
@@ -1230,6 +1240,10 @@ function ThisIsMe:CheckComms()
 	self:SetupComms()
 end
 
+function ThisIsMe:EchoReceivedMessage(channel, strMessage, strSender)
+	self.Comm:OnMessageReceived(channel, strMessage, strSender)
+end
+
 function ThisIsMe:SetupComms()
 	if self.startupTimer ~= nil then
 		return
@@ -1237,46 +1251,18 @@ function ThisIsMe:SetupComms()
 	self.startupTimer = ApolloTimer.Create(30, false, "SetupComms", self) -- automatically retry if something goes wrong.
 	
 	if self.Comm ~= nil and self.Comm:IsReady() then
+		if self.startupTimer ~= nil then
+			self.startupTimer:Stop()
+			self.startupTimer = nil
+		end
 		return
 	end
-	self.Comm = ICCommLib.JoinChannel(self.channel, ICCommLib.CodeEnumICCommChannelType.Global)
+	self.Comm = LibCommExt:GetChannel(self.channel)
 	if self.Comm ~= nil then
-		self.Comm:SetJoinResultFunction("OnJoinResult", self)
-		self.Comm:SetReceivedMessageFunction("OnMessageReceived", self)
-		self.Comm:SetSendMessageResultFunction("OnMessageSent", self)
-		self.Comm:SetThrottledFunction("OnMessageThrottled", self)
+		self.Comm:AddReceiveCallback("OnMessageReceived", self)
+		self.Comm:SetReceiveEcho("EchoReceivedMessage", self)
 	else
 		self:Print(1, "Failed to open channel")
-	end
-end
-
-function ThisIsMe:OnJoinResult(channel, eResult)
-	if self.startupTimer ~= nil then
-		self.startupTimer:Stop()
-		self.startupTimer = nil
-	end
-	
-	if eResult == ICCommLib.CodeEnumICCommJoinResult.Join then
-		self:Print(9, string.format('Joined ICComm Channel "%s"', channel:GetName()))
-		if channel:IsReady() then
-			self:Print(9, 'Channel is ready to transmit')
-		else
-			self:Print(1, 'Channel is not ready to transmit')
-		end
-	elseif eResult == ICCommLib.CodeEnumICCommJoinResult.BadName then
-		self:Print(1, 'Channel ' .. channel .. ' has a bad name.')
-	elseif eResult == ICCommLib.CodeEnumICCommJoinResult.Left then
-		self:Print(1, 'Failed to join channel')
-	elseif eResult == ICCommLib.CodeEnumICCommJoinResult.MissingEntitlement then
-		self:Print(1, 'Failed to join channel')
-	elseif eResult == ICCommLib.CodeEnumICCommJoinResult.NoGroup then
-		self:Print(1, 'Failed to join channel')
-	elseif eResult == ICCommLib.CodeEnumICCommJoinResult.NoGuild then
-		self:Print(1, 'Failed to join channel')
-	elseif eResult == ICCommLib.CodeEnumICCommJoinResult.TooManyChannels then
-		self:Print(1, "You are in too many channels to join the TIM channel")
-	else
-		self:Print(1, 'Failed to join channel; join result: ' .. eResult)
 	end
 end
 
@@ -1405,7 +1391,7 @@ function ThisIsMe:ProcessMessage(channel, strMessage, strSender, protocolVersion
 end
 
 function ThisIsMe:sendHeartbeatMessage()
-	self:AddBufferedMessage("*")
+	self:AddBufferedMessage("*", nil, -10) -- don't check for protocol version, previous versions will just ignore this anyway.
 end
 
 function ThisIsMe:EnablePresenceMessage()
@@ -1429,14 +1415,14 @@ function ThisIsMe:SendPresenceMessage()
 	if self.characterProfiles[self:Character()].Version ~= nil then
 		message = message .. self:EncodeMore(self.characterProfiles[self:Character()].Version, 2)
 	end
-	self:AddBufferedMessage(message)
+	self:AddBufferedMessage(message, nil, 3)
 	self.announcedSelf = true
 	self.presenceMessageEnabled = false
 	self.presenceMessageTimer = self:ScheduleTimer("EnablePresenceMessage", 10)
 end
 
 function ThisIsMe:SendPresenceRequestMessage()
-	self:AddBufferedMessage("#")
+	self:AddBufferedMessage("#", nil, 2)
 	self:SendPresenceMessage()
 	self.seenEveryone = true
 end
@@ -1459,13 +1445,25 @@ function ThisIsMe:SendVersionRequestMessage(player)
 		self.versionRequestMessageQueued[player] = true
 		return
 	end -- nil counts as true
-	self:AddBufferedMessage("#", player)
+	self:AddBufferedMessage("#", player, 15)
 	self.versionRequestMessageEnabled[player] = false
 	self.presenceRequestMessageTimer = self:ScheduleTimer("EnableVersionRequestMessage", 10, player)
 end
 
 function ThisIsMe:SendProfileRequestMessage(name)
-	self:AddBufferedMessage("~", name)
+	self.profileRequestBuffer[name] = true
+	self.profileRequestTimer = ApolloTimer.Create(5, true, "ProfileRequestTimer", self)
+end
+
+function ThisIsMe:ProfileRequestTimer()
+	local profileRequestName = next(self.profileRequestBuffer)
+	if profileRequestName ~= nil then
+		self:AddBufferedMessage("~", profileRequestName, 0)
+		self.profileRequestBuffer[profileRequestName] = nil
+	else
+		self.profileRequestTimer:Stop()
+		self.profileRequestTimer = nil
+	end
 end
 
 function ThisIsMe:EnableProfileSending()
@@ -1491,7 +1489,7 @@ function ThisIsMe:SendBasicProfileDelayed()
 	if self.allowProfileSending == false then return end
 	self:Print(5, "Sending profile")
 	if self:Profile() ~= nil then
-		self:AddBufferedMessage("@" .. self:EncodeProfile(self:Profile()))
+		self:AddBufferedMessage("@" .. self:EncodeProfile(self:Profile()), nil, 1)
 		if self:Profile().Snippets ~= nil then
 			for k, v in pairs(self:Profile().Snippets) do
 				local num = k + 0
@@ -1505,7 +1503,7 @@ function ThisIsMe:SendBasicProfileDelayed()
 		end
 	end
 	self.allowProfileSending = false
-	self:ScheduleTimer("EnableProfileSending", #self.messageQueue)
+	self:ScheduleTimer("EnableProfileSending", 30)
 end
 
 function ThisIsMe:SendTextEntry(number, text)
@@ -1518,12 +1516,12 @@ function ThisIsMe:SendTextEntry(number, text)
 			pos = pos + 75
 		end
 		for k, v in pairs(parts) do
-			self:AddBufferedMessage("$" .. self:Encode(number) .. self:Encode(k) .. self:Encode(#parts) .. v)
+			self:AddBufferedMessage("$" .. self:Encode(number) .. self:Encode(k) .. self:Encode(#parts) .. v, nil, 0)
 		end
 	elseif self.options.protocolVersion <= 4 then
-		self:AddBufferedMessage("$" .. self:Encode(number) .. "AA" .. text)
+		self:AddBufferedMessage("$" .. self:Encode(number) .. "AA" .. text, nil, 0)
 	else
-		self:AddBufferedMessage("$" .. self:Encode(number) .. text)
+		self:AddBufferedMessage("$" .. self:Encode(number) .. text, nil, 0)
 	end
 end
 
@@ -1608,7 +1606,7 @@ function ThisIsMe:ReceiveTextEntry(sender, text)
 	end
 end
 
-function ThisIsMe:SendWrappedMessage(text, recipient, protocolVersion)
+function ThisIsMe:SendWrappedMessage(text, recipient, protocolVersion, priority)
 	if protocolVersion == nil then protocolVersion = self.options.protocolVersion end
 	if self.options.protocolVersion <= 2 then return end
 	local pos = 1
@@ -1643,7 +1641,7 @@ function ThisIsMe:SendWrappedMessage(text, recipient, protocolVersion)
 				prefix = "&" .. self:Encode(number) .. self:EncodeMore(length, 2)
 			end
 		end
-		self:AddBufferedMessage(prefix .. text:sub(pos, pos + chunkSize - 1), recipient)
+		self:AddBufferedMessage(prefix .. text:sub(pos, pos + chunkSize - 1), recipient, priority)
 		pos = pos + chunkSize
 		sequenceNum = sequenceNum + 1
 	end
@@ -1652,6 +1650,7 @@ end
 function ThisIsMe:ReceiveWrappedMessage(strMessage, strSender, protocolVersion)
 	local profile = self.characterProfiles[strSender]
 	if profile == nil then return end
+	profile.WrappedMessages = profile.WrappedMessages or {}
 	local firstCharacter = strMessage:sub(1, 1)
 	if not self:AllowedProtocolVersion(protocolVersion) or protocolVersion < 3 then return false end
 	local offset = 0
@@ -1736,44 +1735,18 @@ function ThisIsMe:messageLoop()
 	end
 end
 
-function ThisIsMe:AddBufferedMessage(message, recipient, protocolVersion)
-	if message:len() > self.messageCharacterLimit then
-		self:SendWrappedMessage(message, recipient, protocolVersion)
-	end
-	if self.messageQueue == nil then self.messageQueue = {} end
-	table.insert(self.messageQueue, {Recipient = recipient, Message = message, ProtocolVersion = protocolVersion or self.options.protocolVersion})
-	if self.sendTimer == nil then
-		self.sendTimer = ApolloTimer.Create(1.0, true, "messageLoop", self)
-		self:messageLoop()
-	end
-end
-
-function ThisIsMe:SendMessage(message, recipient)
-	if message == nil then
-		return true
-	end
-	if self.Comm == nil then
-		self:SetupComms()
-		return false
-	elseif not self.Comm:IsReady() then
-		self:SetupComms()
-		return false
-	end
+function ThisIsMe:AddBufferedMessage(message, recipient, protocolVersion, priority)
+	self:CheckComms()
 	if recipient == nil then
-		if self.Comm:SendMessage(message) then
-			self:Print(5, "Message Sent: " .. message)
-			if self.heartBeatTimer ~= nil then self.heartBeatTimer:Stop() end
-			self.heartBeatTimer = ApolloTimer.Create(60.0, true, "sendHeartbeatMessage", self)
-			return true
-		end
+		self:Print(9, "Sending message: " .. message)
 	else
-		if self.Comm:SendPrivateMessage(recipient, message) then
-			self:Print(5, "Message Sent to " .. recipient .. ": " .. message)
-			return true
-		end
+		self:Print(9, "Sending message to " .. recipient .. ": " .. message)
 	end
-	self:Print(5, "Message sending failed: " .. message)
-	return false
+	if message:len() > self.messageCharacterLimit then
+		self:SendWrappedMessage(message, recipient, protocolVersion or self.options.protocolVersion, priority or 0)
+	else
+		self.Comm:SendMessage(recipient, message, protocolVersion or self.options.protocolVersion, priority or 0)
+	end
 end
 
 ---------------------------------------------------------------------------------------------------
@@ -1781,41 +1754,19 @@ end
 ---------------------------------------------------------------------------------------------------
 
 function ThisIsMe:Encode(numToEncode)
-	if numToEncode == nil then
-		return '-'
-	end
-	local b64='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
-	return b64:sub(numToEncode,numToEncode)
+	return LibCommExt:Encode(numToEncode)
 end
 
 function ThisIsMe:EncodeMore(num, amount)
-	if num == nil or amount == nil then return end
-	num = num - 1
-	local ret = ""
-	for i=1, amount, 1 do
-		ret = ret .. self:Encode((num % 64) + 1)
-		num = num / 64
-	end
-	return ret
+	return LibCommExt:EncodeMore(num, amount)
 end
 
 function ThisIsMe:Decode(charToDecode) 
-	if charToDecode == '-' then
-		return nil
-	end
-	local b64='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
-	return string.find(b64, charToDecode,1)
+	return LibCommExt:Decode(charToDecode)
 end
 
-function ThisIsMe:DecodeMore(str)
-	if str == nil then return nil end
-	local num = 0
-	local mult = 1
-	for i=1, str:len(), 1 do
-		num = num + (self:Decode(str:sub(i,i)) - 1) * mult
-		mult = mult * 64
-	end
-	return num + 1
+function ThisIsMe:DecodeMore(str, amount)
+	return LibCommExt:DecodeMore(str, amount)
 end
 
 function ThisIsMe:AllowedProtocolVersion(num)
@@ -1965,6 +1916,20 @@ function ThisIsMe:GetDropdownSnippet(profile, dropdownOption)
 	return nil
 end
 
+function ThisIsMe:GetProfile(profileName)
+	if self.characterProfiles[profileName] == nil then
+		local newProfile = {}
+		self.characterProfiles[profileName] = newProfile
+		table.insert(self.sortedCharacterProfiles, {Name=profileName, Profile=newProfile, SortFunction="ProfileSort", SortTable=self})
+		self:SortCharacterProfiles();
+	end
+	return self.characterProfiles[profileName]
+end
+
+function ThisIsMe:SortCharacterProfiles()
+	table.sort(self.sortedCharacterProfiles, function(a,b) return a.SortTable[a.SortFunction](a.SortTable, a, b) end)
+end
+
 function ThisIsMe:GetProfileDefaults(name, unit)
 	local profile = {}
 	profile.Faction = "?"
@@ -1992,7 +1957,32 @@ function ThisIsMe:GetProfileDefaults(name, unit)
 	profile.ProtocolVersion = nil -- just to make sure.
 	profile.Snippets = {}
 	profile.TextMap = self:GetDefaultTextMap()
+	profile.Persist = false
 	return profile
+end
+
+function ThisIsMe:IsProfileDefault(profile)
+--	if profile.Persist == true then return false end
+	if profile.Age ~= 1 then return false end
+	if profile.EyeColour ~= 1 then return false end
+	if profile.BodyType ~= 1 then return false end
+	if profile.Length ~= 1 then return false end
+	if profile.HairColour ~= 1 then return false end
+	if profile.HairStreaks ~= 1 then return false end
+	if profile.HairStyle ~= 1 then return false end
+	if profile.HairLength ~= 1 then return false end
+	if profile.HairQuality ~= 1 then return false end
+	if profile.TailSize ~= 1 then return false end
+	if profile.TailState ~= 1 then return false end
+	if profile.TailDecoration ~= 1 then return false end
+	if profile.FacialHair ~= 1 then return false end
+	if profile.TailDecoration ~= 1 then return false end
+--	if profile.Version ~= 2 then return false end
+	if #profile.Tattoos > 0 then return false end
+	if #profile.Talents > 0 then return false end
+	if #profile.Disabilities > 0 then return false end
+	if #profile.Scars > 0 then return false end
+	return true
 end
 
 -----------------------------------------------------------------------------------------------
