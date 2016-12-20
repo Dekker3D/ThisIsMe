@@ -526,10 +526,11 @@ end
 
 function ThisIsMe:CheckData()
 	self:Profile() -- just try to get all the data we can, while we're at it.
-	
-	if self.profileEmptyCheck ~= true and self.currentProfile ~= nil then
-		if next(self:Profile()) == nil or self:Profile().Version == nil then
+		
+	if self.profileEmptyCheck ~= true and self:Profile() ~= nil then
+		if next(self.currentProfile) == nil or self.currentProfile.Version == nil then
 			self.characterProfiles[self:Character()] = self:GetProfileDefaults(self:Character(), self:Unit())
+			self.characterProfiles[self:Character()].OwnProfile = true
 			self:Print(5, "Profile was empty/unusable; resetting.")
 		else
 			self:Print(9, "Profile found; Name: " .. self.currentCharacter)
@@ -540,7 +541,7 @@ function ThisIsMe:CheckData()
 	
 	if self.dataLoadedCheck ~= true and self.dataLoaded == true and self.currentCharacter ~= nil then
 		if next(self.characterProfiles) == nil then
-			self.characterProfiles[self.currentCharacter] = self:GetProfileDefaults(self.currentCharacter, self.currentUnit)
+			self.characterProfiles[self:Character()] = self:GetProfileDefaults(self:Character(), self:Unit())
 		end
 		for k, v in self:sipairs(self.characterProfiles) do
 			self:UpdateOnlineStatus(k)
@@ -635,6 +636,7 @@ end
 -- when the Profile's OK button is clicked
 function ThisIsMe:OnProfileOK()
 	if self.profileEdit == true and  self.editedProfile ~= nil and not self:CompareTableEqualBoth(self.characterProfiles[self:Character()], self.editedProfile) then
+	self.editedProfile.OwnProfile = true
 		self.characterProfiles[self:Character()] = self.editedProfile
 		self:SendPresenceMessage()
 	end
@@ -667,7 +669,7 @@ function ThisIsMe:OnRestore(eLevel, tData)
 					if v.Persist == nil then
 						v.Persist = not self:IsProfileDefault(v)
 					end
-					if v.Persist == true then
+					if v.Persist == true or v.OwnProfile == true then
 						local addTextMap = false
 						if v.TextMap == nil then
 							addTextMap = true
