@@ -1428,7 +1428,9 @@ function ThisIsMe:ProfileRequestTimer()
 		self:AddBufferedMessage("~", profileRequestName, 0)
 		self.profileRequestBuffer[profileRequestName] = nil
 	else
-		self.profileRequestTimer:Stop()
+		if self.profileRequestTimer ~= nil then
+			self.profileRequestTimer:Stop()
+		end
 		self.profileRequestTimer = nil
 	end
 end
@@ -1918,6 +1920,7 @@ function ThisIsMe:GetProfileDefaults(name, unit)
 end
 
 function ThisIsMe:IsProfileDefault(profile)
+	if profile == self:Profile() then return false end
 	if profile.Persist == true then return false end
 	if profile.Age ~= 1 then return false end
 	if profile.EyeColour ~= 1 then return false end
@@ -1938,8 +1941,10 @@ function ThisIsMe:IsProfileDefault(profile)
 	if profile.Talents == nil or #profile.Talents > 0 then return false end
 	if #profile.Disabilities > 0 then return false end
 	if #profile.Scars > 0 then return false end
-	for k, v in pairs(profile.Snippets) do
-		if v:len() > 0 and v ~= "Extra" then return false end
+	if profile.Snippets ~= nil then
+		for k, v in pairs(profile.Snippets) do
+			if v:len() > 0 and v ~= "Extra" then return false end
+		end
 	end
 	return true
 end
