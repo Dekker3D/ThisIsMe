@@ -740,8 +740,20 @@ function ThisIsMe:ProfileSort(profile1, profile2)
 	return profile1.Name < profile2.Name
 end
 
--- populate profile list
 function ThisIsMe:PopulateProfileList()
+	if self.profileListSortTimer ~= nil then
+		self.profileListSortTimer:Stop()
+		self.profileListSortTimer = nil
+	end
+	self.profileListSortTimer = ApolloTimer.Create(0.1, false, "PopulateProfileListImpl", self)
+end
+
+-- populate profile list
+function ThisIsMe:PopulateProfileListImpl()
+	if self.profileListSortTimer ~= nil then
+		self.profileListSortTimer:Stop()
+		self.profileListSortTimer = nil
+	end
 	if self.wndProfileList == nil then return end
 	local position = self.wndProfileList:GetVScrollPos()
 	-- make sure the profile list is empty to start with
