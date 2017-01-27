@@ -929,6 +929,7 @@ function ThisIsMe:PopulateProfileView()
 	
 	if self.profileEdit then
 		self.editedProfile = self:CopyTable(self.characterProfiles[self.profileCharacter], self:GetProfileDefaults(self.profileCharacter))
+		self.editedProfile.TextMap = self:GetDefaultTextMap()
 		self.editedProfile.Version = ((self.editedProfile.Version or 1) % (64 * 64)) + 1
 		self.editedProfile.StoredVersion = self.editedProfile.Version
 		profile = self.editedProfile
