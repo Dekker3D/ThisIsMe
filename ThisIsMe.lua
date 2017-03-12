@@ -603,6 +603,7 @@ end
 function ThisIsMe:OnEditProfileClick()
 	self.profileEdit = true
 	self.profileCharacter = self:Character()
+	self:ApplyDefaultTextMap(self.profileCharacter)
 	self:OpenProfileView()
 end
 
@@ -682,10 +683,7 @@ function ThisIsMe:OnRestore(eLevel, tData)
 							end
 							self.characterProfiles[k].Messages = nil
 						end
-						if addTextMap then
-							self.characterProfiles[k].TextMap = self:GetDefaultTextMap()
-							self.characterProfiles[k].Snippets[3] = "Extra"
-						end
+						self:ApplyDefaultTextMap(self.characterProfiles[k])
 					end
 				end
 			end
@@ -929,7 +927,7 @@ function ThisIsMe:PopulateProfileView()
 	
 	if self.profileEdit then
 		self.editedProfile = self:CopyTable(self.characterProfiles[self.profileCharacter], self:GetProfileDefaults(self.profileCharacter))
-		self.editedProfile.TextMap = self:GetDefaultTextMap()
+		self:ApplyDefaultTextMap(self.editedProfile)
 		self.editedProfile.Version = ((self.editedProfile.Version or 1) % (64 * 64)) + 1
 		self.editedProfile.StoredVersion = self.editedProfile.Version
 		profile = self.editedProfile
@@ -987,7 +985,7 @@ function ThisIsMe:PopulateProfileView()
 		for k, v in self:sipairs(profile.TextMap[2]) do
 			if type(v) == "table" then
 				for k2, v2 in self:sipairs(v) do
-					if k2 ~= 1 and type(v2) == "number" and profile.Snippets[v2] ~= nil then
+					if k2 ~= 1 and type(v2) == "number" and (profile.Snippets[v2] ~= nil or (self.profileEdit and v2 == 2)) then
 						item = self:AddProfileEntry(self.wndProfileContainer, "Extra", "")
 						item:SetContent(v2, profile, not self.profileEdit)
 						if self.profileEdit and self.options.debugMode then item:AddSubButtons(false) end
@@ -1562,8 +1560,7 @@ function ThisIsMe:ReceiveTextEntry(sender, text)
 			self.characterProfiles[sender].Snippets = self.characterProfiles[sender].Snippets or {}
 			self.characterProfiles[sender].Snippets[number] = completeMessage
 			if number == 2 then
-				self.characterProfiles[sender].Snippets[3] = "Extra" -- add the "extra" header
-				self.characterProfiles[sender].TextMap = self:GetDefaultTextMap()
+				self:ApplyDefaultTextMap(self.characterProfiles[sender])
 			end
 		--[[else
 			local number = self:Decode(text:sub(1,1))
@@ -1879,6 +1876,14 @@ function ThisIsMe:GetDefaultTextMap()
 	}
 end
 
+function ThisIsMe:ApplyDefaultTextMap(profile)
+	if profile == nil then return end
+	if type(profile) == "string" then profile = self.characterProfiles[profile] end
+	profile.Snippets = profile.Snippets or {}
+	profile.Snippets[3] = "Extra"
+	profile.TextMap = self:GetDefaultTextMap()
+end
+
 function ThisIsMe:GetDropdownSnippet(profile, dropdownOption)
 	if profile == nil or dropdownOption == nil then return nil end
 	if profile.Snippets ~= nil and profile.Snippets[1] ~= nil and self.dropdownTextMap[dropdownOption] ~= nil and profile.Snippets[1][self.dropdownTextMap[dropdownOption]] ~= nil then
@@ -1927,7 +1932,7 @@ function ThisIsMe:GetProfileDefaults(name, unit)
 	profile.StoredVersion = 1
 	profile.ProtocolVersion = nil -- just to make sure.
 	profile.Snippets = {}
-	profile.TextMap = self:GetDefaultTextMap()
+	self:ApplyDefaultTextMap(profile)
 	profile.Persist = false
 	return profile
 end
