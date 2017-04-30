@@ -18,11 +18,14 @@ local ThisIsMe = {}
 local LibCommExt = nil
 local ProfileWindow = {}
 local ThisIsMeInst = nil
+
+local Major, Minor, Patch, Suffix = 0, 3, 6, 10 -- 10 is j
+local YOURADDON_CURRENT_VERSION = string.format("%d.%d.%d", Major, Minor, Patch)
  
 -----------------------------------------------------------------------------------------------
 -- Constants
 -----------------------------------------------------------------------------------------------
--- e.g. local kiExampleVariableMax = 999
+
 local kcrSelectedText = ApolloColor.new("UI_BtnTextHoloPressed")
 local kcrNormalText = ApolloColor.new("UI_BtnTextHoloNormal")
 local redErrorText = ApolloColor.new("AddonError")
@@ -287,6 +290,8 @@ function ThisIsMe:new(o)
 		o.dropdownTextMap[v] = k
 	end
 	
+	o.TargetFrame = nil
+	
     return o
 end
 
@@ -333,9 +338,11 @@ function ThisIsMe:OnDocLoaded()
 		-- Register handlers for events, slash commands and timer, etc.
 		-- e.g. Apollo.RegisterEventHandler("KeyDown", "OnKeyDown", self)
 		Apollo.RegisterSlashCommand("tim", "OnThisIsMeOn", self)
+		Apollo.RegisterSlashCommand("timvi", "OnTestCommand", self)
 		Apollo.RegisterEventHandler("InterfaceMenuListHasLoaded", "OnInterfaceMenuListHasLoaded", self)
 		self:OnInterfaceMenuListHasLoaded()
 		Apollo.RegisterEventHandler("ToggleMyAddon", "OnThisIsMeOn", self)
+		Apollo.RegisterEventHandler("TargetUnitChanged", "OnTargetUnitChanged", self)
 
 		self.wndProfile = Apollo.LoadForm(self.xmlDoc, "Profile", nil, self)
 		if self.wndProfile == nil then
@@ -358,6 +365,43 @@ end
 
 function ThisIsMe:OnInterfaceMenuListHasLoaded()
 	Event_FireGenericEvent("InterfaceMenuList_NewAddOn", "This Is Me", {"ToggleMyAddon", "", "CRB_HUDAlerts:sprAlert_CallBase"})
+	Event_FireGenericEvent("OneVersion_ReportAddonInfo", "This Is Me", Major, Minor, Patch, Suffix)
+end
+
+function ThisIsMe:ConnectToTargetFrame()
+	if self.TargetFrameAddon == nil then
+		self.TargetFrameAddon = Apollo.GetAddon("TargetFrame")
+	end
+	if self.TargetFrameButton then
+		self.TargetFrameButton:Destroy()
+		self.TargetFrameButton = nil
+	end
+	if self.TargetFrameAddon and self.CurrentTarget ~= nil and self.CurrentTarget:IsACharacter() and self.characterProfiles[self.CurrentTarget:GetName()] ~= nil then
+		local targetFrame = self.TargetFrameAddon.luaTargetFrame
+		if targetFrame then
+			targetFrame = targetFrame.wndLargeFrame
+			if targetFrame then
+				self.TargetFrame = targetFrame
+--				local pos = self:GetWindowAbsolutePosition(targetFrame)
+				self.TargetFrameButton = Apollo.LoadForm(self.xmlDoc, "TIMProfileButton", targetFrame, self)
+--				self.TargetFrameButton:SetAnchorPoints(0, 0, 0, 0)
+--				self.TargetFrameButton:SetAnchorOffsets(pos.nLeft, pos.nTop, pos.nRight, pos.nBottom)
+			end
+		end
+	end
+end
+
+function ThisIsMe:OnTargetUnitChanged(targetID)
+	self.CurrentTarget = targetID
+	self:ConnectToTargetFrame()
+end
+
+function ThisIsMe:OpenProfileViaTargetFrame()
+	if self.CurrentTarget ~= nil then
+		self.profileEdit = false
+		self.profileCharacter = self.CurrentTarget:GetName()
+		self:OpenProfileView()
+	end
 end
 
 ---------------------------------------------------------------------------------------------------
@@ -713,9 +757,39 @@ function ThisIsMe:OnOptionsClick( wndHandler, wndControl, eMouseButton )
 end
 
 function ThisIsMe:OnTestClick( wndHandler, wndControl, eMouseButton )
-	local textMapString = self:GetTextMapString(self:Profile().TextMap)
-	self:Print(9, textMapString)
-	self:ParseTextMapString(textMapString)
+	local scale = 1
+	local nextScale = scale * 32
+	for x = 0, 5, 1 do
+		self:TestVarIntRange(scale - 2, scale + 2)
+		scale = nextScale
+		nextScale = nextScale * 33
+	end
+end
+
+function ThisIsMe:TestVarIntRange(num, numEnd)
+	if num < 0 then num = 0 end
+	for x = num, numEnd, 1 do
+		self:TestVarInt(x)
+	end
+end
+
+function ThisIsMe:TestVarInt(num)
+	local enc = LibCommExt:EncodeVarInt(num)
+	local out, msg = LibCommExt:DecodeVarInt(enc)
+	self:Print(1, "StartNum: " .. num .. ", Encoded: " .. enc .. ", Decoded: " .. out)
+end
+
+function ThisIsMe:TestVarString(str)
+	local enc = LibCommExt:EncodeVarString(str)
+	local out, msg = LibCommExt:DecodeVarString(enc)
+	self:Print(1, "StartStr: " .. str .. ", Encoded: " .. enc .. ", Decoded: " .. out)
+end
+
+function ThisIsMe:OnTestCommand(cmd, arg)
+	local msg = LibCommExt:EncodeTypeData(2, tonumber(arg))
+	self:Print(1, msg)
+	local type, num, tmp = LibCommExt:DecodeTypeData(msg)
+	self:Print(1, type .. " " .. num)
 end
 
 -----------------------------------------------------------------------------------------------
@@ -1101,6 +1175,8 @@ end
 ---------------------------------------------------------------------------------------------------
 
 function ThisIsMe:OnEntryTextChanged( wndHandler, wndControl, strText )
+	if wndControl == nil then return end
+	if strText == nil then strText = "" end
 	local data = wndControl:GetData()
 	if data ~= nil then
 		self.editedProfile[data] = wndControl:GetText()
@@ -1108,6 +1184,8 @@ function ThisIsMe:OnEntryTextChanged( wndHandler, wndControl, strText )
 end
 
 function ThisIsMe:OnMessageEntryChanged( wndHandler, wndControl, strText )
+	if wndControl == nil then return end
+	if strText == nil then strText = "" end
 	local data = wndControl:GetData()
 	if data ~= nil then
 		self.editedProfile.Snippets = self.editedProfile.Snippets or {}
@@ -1309,10 +1387,10 @@ function ThisIsMe:ProcessMessage(channel, strMessage, strSender, protocolVersion
 		if self.characterProfiles[strSender] == nil then shouldUpdate = true end
 		if not (profile.Faction == "E" or profile.Faction == "D") then profile.Faction = firstCharacter end
 		if strMessage:len() > 1 then
-			protocolVersion = self:DecodeMore(strMessage:sub(2,3))
+			protocolVersion = self:DecodeMore1(strMessage:sub(2,3))
 			profile.ProtocolVersion = protocolVersion
 			if self:AllowedProtocolVersion(protocolVersion) then
-				local newVersion = self:DecodeMore(strMessage:sub(4,5))
+				local newVersion = self:DecodeMore1(strMessage:sub(4,5))
 				if profile.Version ~= newVersion and protocolVersion >= 4 then self:SendProfileRequestMessage(strSender) end
 				profile.Version = newVersion
 			end
@@ -1385,13 +1463,13 @@ function ThisIsMe:SendPresenceMessage()
 		return
 	end
 	local message = self:Faction()
-	message = message .. self:EncodeMore(self.options.protocolVersion or 4, 2)
+	message = message .. self:EncodeMore1(self.options.protocolVersion or 4, 2)
 	if self.characterProfiles[self:Character()] == nil then self.characterProfiles[self:Character()] = self:GetProfileDefaults(self:Character(), self:Unit()) end
 	local profile = self.characterProfiles[self:Character()]
 	if profile.Persist == false then
-		message = message .. self:EncodeMore(1, 2)
+		message = message .. self:EncodeMore1(1, 2)
 	else
-		message = message .. self:EncodeMore(self.characterProfiles[self:Character()].Version or 1, 2)
+		message = message .. self:EncodeMore1(self.characterProfiles[self:Character()].Version or 1, 2)
 	end
 	self:AddBufferedMessage(message, nil, 3)
 	self.announcedSelf = true
@@ -1485,9 +1563,9 @@ end
 
 function ThisIsMe:SendTextEntry(number, text)
 	if self.options.protocolVersion <= 4 then
-		self:AddBufferedMessage("$" .. self:Encode(number) .. "AA" .. text, nil, 0)
+		self:AddBufferedMessage("$" .. self:Encode1(number) .. "AA" .. text, nil, 0)
 	else
-		self:AddBufferedMessage("$" .. self:Encode(number) .. text, nil, 0)
+		self:AddBufferedMessage("$" .. self:Encode1(number) .. text, nil, 0)
 	end
 end
 
@@ -1499,18 +1577,18 @@ function ThisIsMe:SendTextMap()
 end
 
 function ThisIsMe:GetTextMapString(mapSection)
-	if type(mapSection) == "number" then return "n" .. self:Encode(mapSection)
+	if type(mapSection) == "number" then return "n" .. self:Encode1(mapSection)
 	elseif type(mapSection) == "table" then
 		local text = ""
 		local num = 0
 		for k, v in self:sipairs(mapSection) do
 			if type(k) == "number" then
 				local newText = self:GetTextMapString(v)
-				text = text .. self:Encode(k) .. self:EncodeMore(newText:len(), 2) .. newText
+				text = text .. self:Encode1(k) .. self:EncodeMore1(newText:len(), 2) .. newText
 				num = num + 1
 			end
 		end
-		text = "t" .. self:Encode(num) .. text
+		text = "t" .. self:Encode1(num) .. text
 		return text
 	end
 end
@@ -1521,15 +1599,15 @@ function ThisIsMe:ParseTextMapString(mapString)
 	local secondCharacter = mapString:sub(2, 2)
 	if firstCharacter == "n" then
 		self:Print(9, "Adding number to table: " .. secondCharacter)
-		return self:Decode(secondCharacter)
+		return self:Decode1(secondCharacter)
 	elseif firstCharacter == "t" then
 		local table = {}
-		local num = self:Decode(secondCharacter)
+		local num = self:Decode1(secondCharacter)
 		local contents = mapString:sub(3, mapString:len())
 		self:Print(9, "Adding table to table, with " .. num .. " entries")
 		for i=1,num,1 do
-			local entryNum = self:Decode(contents:sub(1,1))
-			local length = self:DecodeMore(contents:sub(2,3))
+			local entryNum = self:Decode1(contents:sub(1,1))
+			local length = self:DecodeMore1(contents:sub(2,3))
 			table[entryNum] = self:ParseTextMapString(contents:sub(4, length + 3))
 			contents = contents:sub(length + 4, contents:len())
 		end
@@ -1541,9 +1619,9 @@ end
 function ThisIsMe:ReceiveTextEntry(sender, text)
 	if text ~= nil and sender ~= nil then
 		--if self.characterProfiles[sender].ProtocolVersion == nil or self.characterProfiles[sender].ProtocolVersion <= 5 then
-			local number = self:Decode(text:sub(1,1))
-			local part = self:Decode(text:sub(2,2))
-			local total = self:Decode(text:sub(3,3))
+			local number = self:Decode1(text:sub(1,1))
+			local part = self:Decode1(text:sub(2,2))
+			local total = self:Decode1(text:sub(3,3))
 			local message = text:sub(4, text:len())
 			self.characterProfiles[sender].PartialSnippets = self.characterProfiles[sender].PartialSnippets or {}
 			self.characterProfiles[sender].PartialSnippets[number] = self.characterProfiles[sender].PartialSnippets[number] or {}
@@ -1563,7 +1641,7 @@ function ThisIsMe:ReceiveTextEntry(sender, text)
 				self:ApplyDefaultTextMap(self.characterProfiles[sender])
 			end
 		--[[else
-			local number = self:Decode(text:sub(1,1))
+			local number = self:Decode1(text:sub(1,1))
 			local message = text:sub(offset, text:len())
 			self.characterProfiles[sender].Snippets = self.characterProfiles[sender].Snippets or {}
 			self.characterProfiles[sender].Snippets[number] = message
@@ -1587,23 +1665,23 @@ function ThisIsMe:SendWrappedMessage(text, recipient, protocolVersion, priority)
 			local protocolVersionNum = ""
 			if self.options.protocolVersion >= 4 then
 				chunkSize = chunkSize - 2
-				prefix = "%" .. self:Encode(number) .. self:EncodeMore(protocolVersion, 2) .. self:EncodeMore(length, 2)
+				prefix = "%" .. self:Encode1(number) .. self:EncodeMore1(protocolVersion, 2) .. self:EncodeMore1(length, 2)
 			else
-				prefix = "%" .. self:Encode(number) .. self:EncodeMore(length, 2)
+				prefix = "%" .. self:Encode1(number) .. self:EncodeMore1(length, 2)
 			end
 		elseif pos <= length - self.messageCharacterLimit - 4 then
 			chunkSize = self.messageCharacterLimit - 3
 			if self.options.protocolVersion >= 4 then
-				prefix = "^" .. self:Encode(number) .. self:Encode(sequenceNum)
+				prefix = "^" .. self:Encode1(number) .. self:Encode1(sequenceNum)
 			else
-				prefix = "^" .. self:Encode(number)
+				prefix = "^" .. self:Encode1(number)
 			end
 		else
 			chunkSize = self.messageCharacterLimit - 5
 			if self.options.protocolVersion >= 4 then
-				prefix = "&" .. self:Encode(number) .. self:Encode(sequenceNum) .. self:EncodeMore(length, 2)
+				prefix = "&" .. self:Encode1(number) .. self:Encode1(sequenceNum) .. self:EncodeMore1(length, 2)
 			else
-				prefix = "&" .. self:Encode(number) .. self:EncodeMore(length, 2)
+				prefix = "&" .. self:Encode1(number) .. self:EncodeMore1(length, 2)
 			end
 		end
 		self:AddBufferedMessage(prefix .. text:sub(pos, pos + chunkSize - 1), recipient, priority)
@@ -1620,9 +1698,9 @@ function ThisIsMe:ReceiveWrappedMessage(strMessage, strSender, protocolVersion)
 	if not self:AllowedProtocolVersion(protocolVersion) then return false end
 	local offset = 0
 	if firstCharacter == "%" or firstCharacter == "^" or firstCharacter == "&" then
-		local messageID = self:Decode(strMessage:sub(2 + offset, 2 + offset))
+		local messageID = self:Decode1(strMessage:sub(2 + offset, 2 + offset))
 		if protocolVersion >= 4 and firstCharacter ~= "%" then
-			local sequenceNum = self:Decode(strMessage:sub(3 + offset, 3 + offset))
+			local sequenceNum = self:Decode1(strMessage:sub(3 + offset, 3 + offset))
 			if profile.WrappedMessages[messageID] == nil or profile.WrappedMessages[messageID].LastSequenceNum == nil then
 				profile.WrappedMessages[messageID] = nil -- message received out of sequence
 				self:Print(1, "Wrapped message received out of sequence; discarded")
@@ -1640,10 +1718,10 @@ function ThisIsMe:ReceiveWrappedMessage(strMessage, strSender, protocolVersion)
 		if firstCharacter == "%" then
 			local protocolContained = protocolVersion
 			if protocolVersion >= 4 then
-				protocolContained = self:DecodeMore(strMessage:sub(3 + offset, 4 + offset))
+				protocolContained = self:DecodeMore1(strMessage:sub(3 + offset, 4 + offset))
 				offset = offset + 2
 			end
-			local length = self:DecodeMore(strMessage:sub(3 + offset, 4 + offset))
+			local length = self:DecodeMore1(strMessage:sub(3 + offset, 4 + offset))
 			local content = strMessage:sub(5 + offset, strMessage:len())
 			profile.WrappedMessages = profile.WrappedMessages or {}
 			profile.WrappedMessages[messageID] = {}
@@ -1659,7 +1737,7 @@ function ThisIsMe:ReceiveWrappedMessage(strMessage, strSender, protocolVersion)
 			profile.WrappedMessages[messageID].LastSequenceNum = ((profile.WrappedMessages[messageID].LastSequenceNum) % 64) + 1
 		end
 		if firstCharacter == "&" then
-			local length = self:DecodeMore(strMessage:sub(3 + offset, 4 + offset))
+			local length = self:DecodeMore1(strMessage:sub(3 + offset, 4 + offset))
 			local content = strMessage:sub(5 + offset, strMessage:len())
 			profile.WrappedMessages[messageID] = profile.WrappedMessages[messageID] or {}
 			profile.WrappedMessages[messageID].Content = (profile.WrappedMessages[messageID].Content or "") .. content
@@ -1718,20 +1796,20 @@ end
 -- Encoding/Decoding Functions
 ---------------------------------------------------------------------------------------------------
 
-function ThisIsMe:Encode(numToEncode)
-	return LibCommExt:Encode(numToEncode)
+function ThisIsMe:Encode1(numToEncode)
+	return LibCommExt:Encode1(numToEncode)
 end
 
-function ThisIsMe:EncodeMore(num, amount)
-	return LibCommExt:EncodeMore(num, amount)
+function ThisIsMe:EncodeMore1(num, amount)
+	return LibCommExt:EncodeMore1(num, amount)
 end
 
-function ThisIsMe:Decode(charToDecode) 
-	return LibCommExt:Decode(charToDecode)
+function ThisIsMe:Decode1(charToDecode) 
+	return LibCommExt:Decode1(charToDecode)
 end
 
-function ThisIsMe:DecodeMore(str, amount)
-	return LibCommExt:DecodeMore(str, amount)
+function ThisIsMe:DecodeMore1(str, amount)
+	return LibCommExt:DecodeMore1(str, amount)
 end
 
 function ThisIsMe:AllowedProtocolVersion(num)
@@ -1752,47 +1830,47 @@ function ThisIsMe:EncodeProfile(profile)
 	end
 	local protocolVersion = profile.ProtocolVersion or self.options.protocolVersion -- should always be filled in anyway.
 	local ret = "" -- to add: ear/tail size/quality, hair colour, streak colour, eye colour, facial hair style
-	ret = ret .. self:EncodeMore(profile.Version or 1, 2)
-	ret = ret .. self:Encode(profile.HairStyle or 1)
-	ret = ret .. self:Encode(profile.HairLength or 1)
-	ret = ret .. self:Encode(profile.HairQuality or 1)
-	ret = ret .. self:Encode(profile.HairColour or 1)
-	ret = ret .. self:Encode(profile.HairStreaks or 1)
-	ret = ret .. self:Encode(profile.Age or 1)
-	ret = ret .. self:Encode(profile.Gender or 1)
-	ret = ret .. self:Encode(profile.Race or 1)
-	ret = ret .. self:AddEncodedValue(self:Encode(1), protocolVersion, nil, 4) -- Sexuality, to be ignored
-	ret = ret .. self:AddEncodedValue(self:Encode(1), protocolVersion, nil, 4) -- Relationship, also to be ignored
-	ret = ret .. self:Encode(profile.EyeColour or 1)
-	ret = ret .. self:Encode(profile.Length or 1)
-	ret = ret .. self:Encode(profile.BodyType or 1)
+	ret = ret .. self:EncodeMore1(profile.Version or 1, 2)
+	ret = ret .. self:Encode1(profile.HairStyle or 1)
+	ret = ret .. self:Encode1(profile.HairLength or 1)
+	ret = ret .. self:Encode1(profile.HairQuality or 1)
+	ret = ret .. self:Encode1(profile.HairColour or 1)
+	ret = ret .. self:Encode1(profile.HairStreaks or 1)
+	ret = ret .. self:Encode1(profile.Age or 1)
+	ret = ret .. self:Encode1(profile.Gender or 1)
+	ret = ret .. self:Encode1(profile.Race or 1)
+	ret = ret .. self:AddEncodedValue(self:Encode1(1), protocolVersion, nil, 4) -- Sexuality, to be ignored
+	ret = ret .. self:AddEncodedValue(self:Encode1(1), protocolVersion, nil, 4) -- Relationship, also to be ignored
+	ret = ret .. self:Encode1(profile.EyeColour or 1)
+	ret = ret .. self:Encode1(profile.Length or 1)
+	ret = ret .. self:Encode1(profile.BodyType or 1)
 	if profile.Scars ~= nil then
-		ret = ret .. self:Encode((#profile.Scars or 0) + 1)
+		ret = ret .. self:Encode1((#profile.Scars or 0) + 1)
 		for k, v in ipairs(profile.Scars) do
-			ret = ret .. self:Encode(v or 1)
+			ret = ret .. self:Encode1(v or 1)
 		end
-	else ret = ret .. self:Encode(1)
+	else ret = ret .. self:Encode1(1)
 	end
 	if profile.Tattoos ~= nil then
-		ret = ret .. self:Encode((#profile.Tattoos or 0) + 1)
+		ret = ret .. self:Encode1((#profile.Tattoos or 0) + 1)
 		for k, v in ipairs(profile.Tattoos) do
-			ret = ret .. self:Encode(v or 1)
+			ret = ret .. self:Encode1(v or 1)
 		end
-	else ret = ret .. self:Encode(1)
+	else ret = ret .. self:Encode1(1)
 	end
 	if profile.Talents ~= nil and protocolVersion <= 4 then
-		ret = ret .. self:Encode((#profile.Talents or 0) + 1)
+		ret = ret .. self:Encode1((#profile.Talents or 0) + 1)
 		for k, v in ipairs(profile.Talents) do
-			ret = ret .. self:Encode(v or 1)
+			ret = ret .. self:Encode1(v or 1)
 		end
-	else ret = ret .. self:Encode(1)
+	else ret = ret .. self:Encode1(1)
 	end
 	if profile.Disabilities ~= nil then
-		ret = ret .. self:Encode((#profile.Disabilities or 0) + 1)
+		ret = ret .. self:Encode1((#profile.Disabilities or 0) + 1)
 		for k, v in ipairs(profile.Disabilities) do
-			ret = ret .. self:Encode(v or 1)
+			ret = ret .. self:Encode1(v or 1)
 		end
-	else ret = ret .. self:Encode(1)
+	else ret = ret .. self:Encode1(1)
 	end
 	return ret
 end
@@ -1812,41 +1890,41 @@ function ThisIsMe:DecodeProfile(input, profile)
 	local protocolVersion = profile.ProtocolVersion or self.options.protocolVersion -- should always be filled in anyway.
 	self:Print(9, "Received a profile with protocol version " .. protocolVersion)
 	local inputTable = {Message = input}
-	profile.Version = self:DecodeMore(self:DecodeGetFirstCharacters(inputTable, 2, protocolVersion, nil, nil)) or profile.Version
-	profile.HairStyle = self:DecodeMore(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, nil)) or profile.HairStyle
-	profile.HairLength = self:DecodeMore(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, nil)) or profile.HairLength
-	profile.HairQuality = self:DecodeMore(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, nil)) or profile.HairQuality
-	profile.HairColour = self:DecodeMore(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, nil)) or profile.HairColour
-	profile.HairStreaks = self:DecodeMore(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, nil)) or profile.HairStreaks
-	profile.Age = self:DecodeMore(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, nil)) or profile.Age
-	profile.Gender = self:DecodeMore(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, nil)) or profile.Gender
-	profile.Race = self:DecodeMore(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, 2, nil)) or profile.Race -- only in ProtocolVersion 2 and up
-	self:DecodeMore(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, 4)) -- Sexuality, to be ignored
-	self:DecodeMore(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, 4)) -- Relationship, also to be ignored
-	profile.EyeColour = self:DecodeMore(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, nil)) or profile.EyeColour
-	profile.Length = self:DecodeMore(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, nil)) or profile.Length
-	profile.BodyType = self:DecodeMore(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, nil)) or profile.BodyType
-	local amount = self:DecodeMore(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, nil)) - 1
+	profile.Version = self:DecodeMore1(self:DecodeGetFirstCharacters(inputTable, 2, protocolVersion, nil, nil)) or profile.Version
+	profile.HairStyle = self:DecodeMore1(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, nil)) or profile.HairStyle
+	profile.HairLength = self:DecodeMore1(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, nil)) or profile.HairLength
+	profile.HairQuality = self:DecodeMore1(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, nil)) or profile.HairQuality
+	profile.HairColour = self:DecodeMore1(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, nil)) or profile.HairColour
+	profile.HairStreaks = self:DecodeMore1(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, nil)) or profile.HairStreaks
+	profile.Age = self:DecodeMore1(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, nil)) or profile.Age
+	profile.Gender = self:DecodeMore1(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, nil)) or profile.Gender
+	profile.Race = self:DecodeMore1(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, 2, nil)) or profile.Race -- only in ProtocolVersion 2 and up
+	self:DecodeMore1(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, 4)) -- Sexuality, to be ignored
+	self:DecodeMore1(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, 4)) -- Relationship, also to be ignored
+	profile.EyeColour = self:DecodeMore1(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, nil)) or profile.EyeColour
+	profile.Length = self:DecodeMore1(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, nil)) or profile.Length
+	profile.BodyType = self:DecodeMore1(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, nil)) or profile.BodyType
+	local amount = self:DecodeMore1(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, nil)) - 1
 	profile.Scars = {}
 	for i = 1, amount, 1 do
-		profile.Scars[i] = self:DecodeMore(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, nil)) or 1
+		profile.Scars[i] = self:DecodeMore1(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, nil)) or 1
 	end
-	amount = self:DecodeMore(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, nil)) - 1
+	amount = self:DecodeMore1(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, nil)) - 1
 	profile.Tattoos = {}
 	for i = 1, amount, 1 do
-		profile.Tattoos[i] = self:DecodeMore(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, nil)) or 1
+		profile.Tattoos[i] = self:DecodeMore1(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, nil)) or 1
 	end
 	if protocolVersion <= 4 then
-		amount = self:DecodeMore(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, nil)) - 1
+		amount = self:DecodeMore1(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, nil)) - 1
 		profile.Talents = nil
 		for i = 1, amount, 1 do
-			self:DecodeMore(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, nil))
+			self:DecodeMore1(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, nil))
 		end
 	end
-	amount = self:DecodeMore(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, nil)) - 1
+	amount = self:DecodeMore1(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, nil)) - 1
 	profile.Disabilities = {}
 	for i = 1, amount, 1 do
-		profile.Disabilities[i] = self:DecodeMore(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, nil)) or 1
+		profile.Disabilities[i] = self:DecodeMore1(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, nil)) or 1
 	end
 	profile.Persist = not self:IsProfileDefault(profile)
 	return profile
@@ -1882,14 +1960,6 @@ function ThisIsMe:ApplyDefaultTextMap(profile)
 	profile.Snippets = profile.Snippets or {}
 	profile.Snippets[3] = "Extra"
 	profile.TextMap = self:GetDefaultTextMap()
-end
-
-function ThisIsMe:GetDropdownSnippet(profile, dropdownOption)
-	if profile == nil or dropdownOption == nil then return nil end
-	if profile.Snippets ~= nil and profile.Snippets[1] ~= nil and self.dropdownTextMap[dropdownOption] ~= nil and profile.Snippets[1][self.dropdownTextMap[dropdownOption]] ~= nil then
-		return profile.Snippets[1][self.dropdownTextMap[dropdownOption]]
-	end
-	return nil
 end
 
 function ThisIsMe:GetProfile(profileName)
@@ -2059,6 +2129,8 @@ function ProfileWindow:SetContent(content, profile, readonly)
 	if type(content) == "string" then
 		self:AddContentBox(content, 0, readonly)
 	elseif type(content) == "number" then
+		profile.Snippets = profile.Snippets or {}
+		profile.Snippets[content] = profile.Snippets[content] or ""
 		self:AddContentBox(profile.Snippets[content] or "", content, readonly)
 	elseif type(content) == "table" then
 		for k, v in sipairs(content) do
@@ -2090,7 +2162,7 @@ end
 function ProfileWindow:AddTextBox(defaultText, variableName)
 	if self.optionFrame then
 		self:ClearAllChildren(self.optionFrame)
-		local textbox = Apollo.LoadForm(self:XmlDoc(), "EntryTextBox", self.optionFrame, self)
+		local textbox = Apollo.LoadForm(self:XmlDoc(), "EntryTextBox", self.optionFrame, ThisIsMeInst)
 		local entryText = textbox:FindChild("TextBox")
 		if entryText then
 			entryText:SetText(defaultText)
@@ -2105,7 +2177,7 @@ function ProfileWindow:AddContentBox(text, number, readonly)
 	if self.contentFrame then
 		self.ownedWindow:SetAnchorOffsets(0,0,0,150)
 		self:ClearAllChildren(self.contentFrame)
-		local textbox = Apollo.LoadForm(self:XmlDoc(), "LargeTextBox", self.contentFrame, self)
+		local textbox = Apollo.LoadForm(self:XmlDoc(), "LargeTextBox", self.contentFrame, ThisIsMeInst)
 		local entryText = textbox:FindChild("TextBox")
 		if entryText then
 			entryText:SetText(text)
