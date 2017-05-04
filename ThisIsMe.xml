@@ -123,9 +123,14 @@
             <Event Name="ButtonSignal" Function="OnDropdownSelection"/>
         </Control>
     </Form>
-    <Form Class="Window" LAnchorPoint="1" LAnchorOffset="-50" TAnchorPoint="0" TAnchorOffset="0" RAnchorPoint="1" RAnchorOffset="0" BAnchorPoint="0" BAnchorOffset="50" RelativeToClient="1" Font="Default" Text="" BGColor="UI_WindowBGDefault" TextColor="UI_WindowTextDefault" Template="Default" TooltipType="OnCursor" Name="TIMProfileButton" Border="0" Picture="0" SwallowMouseClicks="1" Moveable="0" Escapable="0" Overlapped="1" TooltipColor="">
+    <Form Class="Window" LAnchorPoint="1" LAnchorOffset="-50" TAnchorPoint="0" TAnchorOffset="0" RAnchorPoint="1" RAnchorOffset="0" BAnchorPoint="0" BAnchorOffset="50" RelativeToClient="1" Font="Default" Text="" BGColor="UI_WindowBGDefault" TextColor="UI_WindowTextDefault" Template="Default" TooltipType="OnCursor" Name="TIMProfileButton" Border="0" Picture="0" SwallowMouseClicks="1" Moveable="0" Escapable="0" Overlapped="1" TooltipColor="" Tooltip="">
         <Control Class="Button" Base="BK3:btnHolo_CharacterCreate_ArmorPreview1" Font="DefaultButton" ButtonType="PushButton" RadioGroup="" LAnchorPoint="0" LAnchorOffset="0" TAnchorPoint="0" TAnchorOffset="0" RAnchorPoint="1" RAnchorOffset="0" BAnchorPoint="1" BAnchorOffset="0" DT_VCENTER="1" DT_CENTER="1" BGColor="UI_BtnBGDefault" TextColor="UI_BtnTextDefault" NormalTextColor="UI_BtnTextDefault" PressedTextColor="UI_BtnTextDefault" FlybyTextColor="UI_BtnTextDefault" PressedFlybyTextColor="UI_BtnTextDefault" DisabledTextColor="UI_BtnTextDefault" TooltipType="OnCursor" Name="ProfileButton" TooltipColor="" FocusedTextColor="ffffffff" Text="" WindowSoundTemplate="CloseWindowPhys">
             <Event Name="ButtonSignal" Function="OpenProfileViaTargetFrame"/>
+        </Control>
+    </Form>
+    <Form Class="Window" LAnchorPoint="1" LAnchorOffset="-90" TAnchorPoint="0" TAnchorOffset="50" RAnchorPoint="1" RAnchorOffset="-40" BAnchorPoint="0" BAnchorOffset="100" RelativeToClient="1" Font="Default" Text="" BGColor="UI_WindowBGDefault" TextColor="UI_WindowTextDefault" Template="Default" TooltipType="OnCursor" Name="TIMKuronaButton" Border="0" Picture="0" SwallowMouseClicks="1" Moveable="0" Escapable="0" Overlapped="1" TooltipColor="">
+        <Control Class="Button" Base="BK3:btnHolo_CharacterCreate_ArmorPreview1" Font="DefaultButton" ButtonType="PushButton" RadioGroup="" LAnchorPoint="0" LAnchorOffset="0" TAnchorPoint="0" TAnchorOffset="0" RAnchorPoint="1" RAnchorOffset="0" BAnchorPoint="1" BAnchorOffset="0" DT_VCENTER="1" DT_CENTER="1" BGColor="UI_BtnBGDefault" TextColor="UI_BtnTextDefault" NormalTextColor="UI_BtnTextDefault" PressedTextColor="UI_BtnTextDefault" FlybyTextColor="UI_BtnTextDefault" PressedFlybyTextColor="UI_BtnTextDefault" DisabledTextColor="UI_BtnTextDefault" TooltipType="OnCursor" Name="ProfileButton" TooltipColor="" FocusedTextColor="ffffffff" WindowSoundTemplate="CloseWindowPhys">
+            <Event Name="ButtonSignal" Function="YourFunctionName"/>
         </Control>
     </Form>
 </Forms>

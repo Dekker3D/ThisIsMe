@@ -361,6 +361,7 @@ function ThisIsMe:OnDocLoaded()
 	end
 	self.startupTimer = ApolloTimer.Create(5, false, "CheckComms", self)
 	self.dataCheckTimer = ApolloTimer.Create(1, true, "CheckData", self)
+	self.MyHeartbeatTimer = ApolloTimer.Create(60, true, "sendHeartbeatMessage", self)
 end
 
 function ThisIsMe:OnInterfaceMenuListHasLoaded()
@@ -372,20 +373,27 @@ function ThisIsMe:ConnectToTargetFrame()
 	if self.TargetFrameAddon == nil then
 		self.TargetFrameAddon = Apollo.GetAddon("TargetFrame")
 	end
+	if self.TargetFrameAddon == nil and self.KuronaFrames == nil then
+		self.KuronaFrames = Apollo.GetAddon("KuronaFrames")
+	end
 	if self.TargetFrameButton then
 		self.TargetFrameButton:Destroy()
 		self.TargetFrameButton = nil
 	end
-	if self.TargetFrameAddon and self.CurrentTarget ~= nil and self.CurrentTarget:IsACharacter() and self.characterProfiles[self.CurrentTarget:GetName()] ~= nil then
-		local targetFrame = self.TargetFrameAddon.luaTargetFrame
-		if targetFrame then
-			targetFrame = targetFrame.wndLargeFrame
+	if self.CurrentTarget ~= nil and self.CurrentTarget:IsACharacter() and self.characterProfiles[self.CurrentTarget:GetName()] ~= nil then
+		if self.TargetFrameAddon then
+			local targetFrame = self.TargetFrameAddon.luaTargetFrame
 			if targetFrame then
-				self.TargetFrame = targetFrame
---				local pos = self:GetWindowAbsolutePosition(targetFrame)
-				self.TargetFrameButton = Apollo.LoadForm(self.xmlDoc, "TIMProfileButton", targetFrame, self)
---				self.TargetFrameButton:SetAnchorPoints(0, 0, 0, 0)
---				self.TargetFrameButton:SetAnchorOffsets(pos.nLeft, pos.nTop, pos.nRight, pos.nBottom)
+				targetFrame = targetFrame.wndLargeFrame
+				if targetFrame then
+					self.TargetFrame = targetFrame
+					self.TargetFrameButton = Apollo.LoadForm(self.xmlDoc, "TIMProfileButton", targetFrame, self)
+				end
+			end
+		elseif self.KuronaFrames then
+			local targetFrame = self.KuronaFrames.targetFrame
+			if targetFrame then
+				self.TargetFrameButton = Apollo.LoadForm(self.xmlDoc, "TIMKuronaButton", targetFrame, self)
 			end
 		end
 	end
@@ -1789,6 +1797,13 @@ function ThisIsMe:AddBufferedMessage(message, recipient, protocolVersion, priori
 		self:SendWrappedMessage(message, recipient, protocolVersion or self.options.protocolVersion, priority or 0)
 	else
 		self.Comm:SendMessage(recipient, message, protocolVersion or self.options.protocolVersion, priority or 0)
+	end
+	if recipient == nil then
+		if self.MyHeartbeatTimer ~= nil then
+			self.MyHeartbeatTimer:Stop()
+			self.MyHeartbeatTimer = nil
+		end
+		self.MyHeartbeatTimer = ApolloTimer.Create(60, true, "sendHeartbeatMessage", self)
 	end
 end
 
