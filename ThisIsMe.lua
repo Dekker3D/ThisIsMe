@@ -19,7 +19,7 @@ local LibCommExt = nil
 local ProfileWindow = {}
 local ThisIsMeInst = nil
 
-local Major, Minor, Patch, Suffix = 0, 3, 6, 10 -- 10 is j
+local Major, Minor, Patch, Suffix = 0, 3, 7, 2 -- 10 is j
 local YOURADDON_CURRENT_VERSION = string.format("%d.%d.%d", Major, Minor, Patch)
  
 -----------------------------------------------------------------------------------------------
@@ -371,18 +371,24 @@ end
 
 function ThisIsMe:ConnectToTargetFrame()
 	if self.TargetFrameAddon == nil then
-		self.TargetFrameAddon = Apollo.GetAddon("TargetFrame")
+		self.VanillaFrame = Apollo.GetAddon("TargetFrame")
+		self.TargetFrameAddon = self.VanillaFrame
 	end
-	if self.TargetFrameAddon == nil and self.KuronaFrames == nil then
+	if self.TargetFrameAddon == nil then
 		self.KuronaFrames = Apollo.GetAddon("KuronaFrames")
+		self.TargetFrameAddon = self.KuronaFrames
+	end
+	if self.TargetFrameAddon == nil then
+		self.ForgeFrames = Apollo.GetAddon("ForgeUI_UnitFrames")
+		self.TargetFrameAddon = self.ForgeFrames
 	end
 	if self.TargetFrameButton then
 		self.TargetFrameButton:Destroy()
 		self.TargetFrameButton = nil
 	end
 	if self.CurrentTarget ~= nil and self.CurrentTarget:IsACharacter() and self.characterProfiles[self.CurrentTarget:GetName()] ~= nil then
-		if self.TargetFrameAddon then
-			local targetFrame = self.TargetFrameAddon.luaTargetFrame
+		if self.VanillaFrame then
+			local targetFrame = self.VanillaFrame.luaTargetFrame
 			if targetFrame then
 				targetFrame = targetFrame.wndLargeFrame
 				if targetFrame then
@@ -394,6 +400,12 @@ function ThisIsMe:ConnectToTargetFrame()
 			local targetFrame = self.KuronaFrames.targetFrame
 			if targetFrame then
 				self.TargetFrameButton = Apollo.LoadForm(self.xmlDoc, "TIMKuronaButton", targetFrame, self)
+			end
+		elseif self.ForgeFrames then
+			local targetFrame = self.ForgeFrames.wndTargetFrame
+			if targetFrame then
+				self:Print(1, "Forge!")
+				self.TargetFrameButton = Apollo.LoadForm(self.xmlDoc, "TIMForgeButton", targetFrame, self)
 			end
 		end
 	end
