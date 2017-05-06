@@ -21,6 +21,8 @@ local ThisIsMeInst = nil
 
 local Major, Minor, Patch, Suffix = 0, 3, 7, 2 -- 10 is j
 local YOURADDON_CURRENT_VERSION = string.format("%d.%d.%d", Major, Minor, Patch)
+
+local Locale = {}
  
 -----------------------------------------------------------------------------------------------
 -- Constants
@@ -51,169 +53,6 @@ function ThisIsMe:new(o)
 	o.sortedCharacterProfiles = {}
 	
 	o.seenEveryone = false
-		
-	o.hairStyle = {
-		"N/A",
-		"Other",
-		"Plain",
-		"Pig-tails",
-		"Pony-tail",
-		"Mohawk",
-		"Dreadlocks",
-		"Pompadour",
-		"Mullet",
-		"Comb-over"
-	}
-	
-	o.hairLength = {
-		"N/A",
-		"Other",
-		"Bald",
-		"Short/Small",
-		"Shoulder-Length/Medium",
-		"Waist-Length/Large",
-		"Hip-Length/Huge"
-	}
-	
-	o.hairQuality = {
-		"N/A",
-		"Other",
-		"Lustrous",
-		"Glossy",
-		"Dull",
-		"Gelled",
-		"Styled",
-		"Well Kept",
-		"Neatly Combed",
-		"Plain",
-		"Messy",
-		"Untamed",
-		"Leafy",
-		"Unclean",
-		"Ragged",
-		"Very Curly",
-		"Curly",
-		"Spikey",
-		"Braided",
-		"Crystalline",
-		"Full",
-		"Thinning"
-	}
-	
-	o.hairColour = {
-		"N/A",
-		"Other",
-		"Gray"
-	}
-	
-	o.tailSize = {
-		"N/A",
-		"Other",
-		"Long",
-		"Short",
-		"Cut Off",
-		"Cut Short",
-		"Thick",
-		"Muscular",
-		"Thin",
-		"Ratty"
-	}
-	
-	o.tailState = {
-		"N/A",
-		"Other",
-		"Fluffy",
-		"Gloriously Fluffy",
-		"Bald",
-		"Patchy",
-		"Scaled",
-		"Leathery",
-		"Cracked",
-		"Dirty"
-	}
-	
-	o.tailDecoration = {
-		"N/A",
-		"Other",
-		"Circlet/Band",
-		"Pierced - Loops",
-		"Pierced - Studs"
-	}
-		
-	o.genders = {
-		"N/A",
-		"Other",
-		"Male",
-		"Female",
-		"Transmale",
-		"Transfemale",
-		"Genderless" -- tempted to add "Mayonnaise"
-	}
-	
-	o.races = {
-		"N/A",
-		"Other",
-		"Aurin",
-		"Chua",
-		"Draken",
-		"Granok",
-		"Human",
-		"Mechari",
-		"Mordesh",
-		"Cassian Highborn",
-		"Cassian Lowborn",
-		"Luminai"
-	}
-	
-	o.ages = {
-		"N/A",
-		"Other",
-		"Baby",
-		"Child",
-		"Teen",
-		"Young Adult",
-		"Adult",
-		"Middle-Aged",
-		"Old",
-		"Ancient",
-		"Ageless"
-	}
-	
-	o.bodyTypes = {
-		"N/A",
-		"Other",
-		"Skin And Bones",
-		"Slim",
-		"Average",
-		"Thick",
-		"Chunky",
-		"Wirey",
-		"Toned",
-		"Athletic",
-		"Muscular",
-		"Top-Heavy",
-		"Pear-Shaped",
-		"Perfect Hourglass",
-		"Barrel-Chested"
-	}
-	
-	o.heights = {
-		"N/A",
-		"Other",
-		"Tiny",
-		"Short",
-		"Below Average",
-		"Average",
-		"Above Average",
-		"Tall",
-		"Gargantuan"
-	}
-	
-	o.sortModes = {
-		"Newest First",
-		"By Character Name",
-		"By Customized Name"
-	}
 	
 	o.sortMode = 1
 	o.sortInvert = false
@@ -225,11 +64,12 @@ function ThisIsMe:new(o)
 		["6"]={"charactercreate:sprCharC_Finalize_RaceGranokM", "charactercreate:sprCharC_Finalize_RaceGranokF"},
 		["7"]={"charactercreate:sprCharC_Finalize_RaceExileM", "charactercreate:sprCharC_Finalize_RaceExileF"},
 		["8"]={"charactercreate:sprCharC_Finalize_RaceMechariM", "charactercreate:sprCharC_Finalize_RaceMechariF"},
-		["9"]={"charactercreate:sprCharC_Finalize_RaceMordeshM", "charactercreate:sprCharC_Finalize_RaceMordeshF"}
+		["9"]={"charactercreate:sprCharC_Finalize_RaceMordeshM", "charactercreate:sprCharC_Finalize_RaceMordeshF"},
+		["10"]={"charactercreate:sprCharC_Finalize_RaceDomM", "charactercreate:sprCharC_Finalize_RaceDomF"},
+		["11"]={"charactercreate:sprCharC_Finalize_RaceDomM", "charactercreate:sprCharC_Finalize_RaceDomF"}
 	}
 	o.portraitUnknown = "charactercreate:sprCharC_Finalize_SkillLevel1"
 	o.portraitChua = "charactercreate:sprCharC_Finalize_RaceChua"
-	o.portraitCassian = {"charactercreate:sprCharC_Finalize_RaceDomM", "charactercreate:sprCharC_Finalize_RaceDomF"}
 	
 	o.Comm = nil
 	o.channel = "__TIM__"
@@ -316,6 +156,8 @@ function ThisIsMe:OnLoad()
 	GeminiTimer = Apollo.GetPackage("Gemini:Timer-1.0").tPackage
 	GeminiTimer:Embed(self)
 	LibCommExt = Apollo.GetPackage("LibCommExt-1.0").tPackage
+	Locale = Apollo.GetPackage("Gemini:Locale-1.0").tPackage:GetLocale("ThisIsMe", true)
+	self:LoadEntries()
 end
 
 function ThisIsMe:OnDocLoaded()
@@ -424,6 +266,171 @@ function ThisIsMe:OpenProfileViaTargetFrame()
 	end
 end
 
+function ThisIsMe:LoadEntries()
+	self.hairStyle = {
+		Locale["N/A"],
+		Locale["Other"],
+		Locale["Plain"],
+		Locale["Pig-tails"],
+		Locale["Pony-tail"],
+		Locale["Mohawk"],
+		Locale["Dreadlocks"],
+		Locale["Pompadour"],
+		Locale["Mullet"],
+		Locale["Comb-over"]
+	}
+	
+	self.hairLength = {
+		Locale["N/A"],
+		Locale["Other"],
+		Locale["Bald"],
+		Locale["Short/Small"],
+		Locale["Shoulder-Length/Medium"],
+		Locale["Waist-Length/Large"],
+		Locale["Hip-Length/Huge"]
+	}
+	
+	self.hairQuality = {
+		Locale["N/A"],
+		Locale["Other"],
+		Locale["Lustrous"],
+		Locale["Glossy"],
+		Locale["Dull"],
+		Locale["Gelled"],
+		Locale["Styled"],
+		Locale["Well Kept"],
+		Locale["Neatly Combed"],
+		Locale["Plain"],
+		Locale["Messy"],
+		Locale["Untamed"],
+		Locale["Leafy"],
+		Locale["Unclean"],
+		Locale["Ragged"],
+		Locale["Very Curly"],
+		Locale["Curly"],
+		Locale["Spikey"],
+		Locale["Braided"],
+		Locale["Crystalline"],
+		Locale["Full"],
+		Locale["Thinning"]
+	}
+	
+	self.hairColour = {
+		Locale["N/A"],
+		Locale["Other"],
+		Locale["Gray"]
+	}
+	
+	self.tailSize = {
+		Locale["N/A"],
+		Locale["Other"],
+		Locale["Long"],
+		Locale["Short"],
+		Locale["Cut Off"],
+		Locale["Cut Short"],
+		Locale["Thick"],
+		Locale["Muscular"],
+		Locale["Thin"],
+		Locale["Ratty"]
+	}
+	
+	self.tailState = {
+		Locale["N/A"],
+		Locale["Other"],
+		Locale["Fluffy"],
+		Locale["Gloriously Fluffy"],
+		Locale["Bald"],
+		Locale["Patchy"],
+		Locale["Scaled"],
+		Locale["Leathery"],
+		Locale["Cracked"],
+		Locale["Dirty"]
+	}
+	
+	self.tailDecoration = {
+		Locale["N/A"],
+		Locale["Other"],
+		Locale["Circlet/Band"],
+		Locale["Pierced - Loops"],
+		Locale["Pierced - Studs"]
+	}
+		
+	self.genders = {
+		Locale["N/A"],
+		Locale["Other"],
+		Locale["Male"],
+		Locale["Female"],
+		Locale["Transmale"],
+		Locale["Transfemale"],
+		Locale["Genderless"]
+	}
+	
+	self.races = {
+		Locale["N/A"],
+		Locale["Other"],
+		Locale["Aurin"],
+		Locale["Chua"],
+		Locale["Draken"],
+		Locale["Granok"],
+		Locale["Human"],
+		Locale["Mechari"],
+		Locale["Mordesh"],
+		Locale["Cassian Highborn"],
+		Locale["Cassian Lowborn"],
+		Locale["Luminai"]
+	}
+	
+	self.ages = {
+		Locale["N/A"],
+		Locale["Other"],
+		Locale["Baby"],
+		Locale["Child"],
+		Locale["Teen"],
+		Locale["Young Adult"],
+		Locale["Adult"],
+		Locale["Middle-Aged"],
+		Locale["Old"],
+		Locale["Ancient"],
+		Locale["Ageless"]
+	}
+	
+	self.bodyTypes = {
+		Locale["N/A"],
+		Locale["Other"],
+		Locale["Skin And Bones"],
+		Locale["Slim"],
+		Locale["Average"],
+		Locale["Thick"],
+		Locale["Chunky"],
+		Locale["Wirey"],
+		Locale["Toned"],
+		Locale["Athletic"],
+		Locale["Muscular"],
+		Locale["Top-Heavy"],
+		Locale["Pear-Shaped"],
+		Locale["Perfect Hourglass"],
+		Locale["Barrel-Chested"]
+	}
+	
+	self.heights = {
+		Locale["N/A"],
+		Locale["Other"],
+		Locale["Tiny"],
+		Locale["Short"],
+		Locale["Below Average"],
+		Locale["Average"],
+		Locale["Above Average"],
+		Locale["Tall"],
+		Locale["Gargantuan"]
+	}
+	
+	self.sortModes = {
+		Locale["Newest First"],
+		Locale["By Character Name"],
+		Locale["By Customized Name"]
+	}
+end
+
 ---------------------------------------------------------------------------------------------------
 -- Utility Functions
 ---------------------------------------------------------------------------------------------------
@@ -468,13 +475,13 @@ function ThisIsMe:GetRaceEnum(unit)
 	if unit ~= nil then
 		local unitRace = unit:GetRaceId()
 		local race = nil
-		if unitRace == GameLib.CodeEnumRace.Aurin then race = 3
-		elseif unitRace == GameLib.CodeEnumRace.Chua then race = 4
-		elseif unitRace == GameLib.CodeEnumRace.Draken then race = 5
-		elseif unitRace == GameLib.CodeEnumRace.Granok then race = 6
+		if unitRace == GameLib.CodeEnumRace.Aurin then race = 3; self.currentFaction = "E"
+		elseif unitRace == GameLib.CodeEnumRace.Chua then race = 4; self.currentFaction = "D"
+		elseif unitRace == GameLib.CodeEnumRace.Draken then race = 5; self.currentFaction = "D"
+		elseif unitRace == GameLib.CodeEnumRace.Granok then race = 6; self.currentFaction = "E"
 		elseif unitRace == GameLib.CodeEnumRace.Human then race = 7
-		elseif unitRace == GameLib.CodeEnumRace.Mechari then race = 8
-		elseif unitRace == GameLib.CodeEnumRace.Mordesh then race = 9
+		elseif unitRace == GameLib.CodeEnumRace.Mechari then race = 8; self.currentFaction = "D"
+		elseif unitRace == GameLib.CodeEnumRace.Mordesh then race = 9; self.currentFaction = "E"
 		end
 		return race
 	end
@@ -561,7 +568,7 @@ function ThisIsMe:Character()
 end
 
 function ThisIsMe:Faction()
-	if self.currentFaction == nil and self:Unit() ~= nil then
+	if (self.currentFaction == nil or self.currentFaction == "?") and self:Unit() ~= nil then
 		local factionNum = self:Unit():GetFaction()
 		if factionNum  == 166 then
 			self.currentFaction = "D"
@@ -614,7 +621,7 @@ function ThisIsMe:CheckData()
 		self:Print(9, "Checked loaded data for content.")
 	end
 	
-	if self.commCheck ~= true and self.Comm ~= nil and self.Comm:IsReady() and self.currentFaction ~= nil and self.currentCharacter ~= nil then
+	if self.commCheck ~= true and self.Comm ~= nil and self.Comm:IsReady() and self.currentFaction ~= nil and self.currentFaction ~= "?" and self.currentCharacter ~= nil then
 		self.commCheck = true
 		if not self.announcedSelf then
 			self:SendPresenceMessage()
