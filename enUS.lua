@@ -114,3 +114,28 @@ L["Gargantuan"] = true
 L["Newest First"] = true
 L["By Character Name"] = true
 L["By Customized Name"] = true
+
+
+L["Filters"] = true
+L["Test"] = true
+L["EditProfile"] = "Edit Profile"
+L["IngameNameShorthand"] = "IG"
+L["Uptodate"] = "Up To Date"
+L["Outdated"] = true
+L["ViewProfile"] = "View"
+L["UpdateProfile"] = "Update"
+L["OptionsOk"] = "OK"
+L["DebugMode"] = "  Debug Mode" -- spaces in front simply for spacing
+L["DebugLevel"] = "  Debug Level"
+L["ProtocolVersion"] = "Protocol Version"
+L["Options"] = true
+
+L["Name"] = true
+L["Gender"] = true
+L["Race"] = true
+L["Age"] = true
+L["Height"] = true
+L["Body Type"] = true
+L["Hair Length"] = true
+L["Hair Quality"] = true
+L["Hair Style"] = true

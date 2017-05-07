@@ -22,7 +22,8 @@ local ThisIsMeInst = nil
 local Major, Minor, Patch, Suffix = 0, 3, 7, 2 -- 10 is j
 local YOURADDON_CURRENT_VERSION = string.format("%d.%d.%d", Major, Minor, Patch)
 
-local Locale = {}
+local Locale = nil
+local GeminiLocale = nil
  
 -----------------------------------------------------------------------------------------------
 -- Constants
@@ -156,7 +157,8 @@ function ThisIsMe:OnLoad()
 	GeminiTimer = Apollo.GetPackage("Gemini:Timer-1.0").tPackage
 	GeminiTimer:Embed(self)
 	LibCommExt = Apollo.GetPackage("LibCommExt-1.0").tPackage
-	Locale = Apollo.GetPackage("Gemini:Locale-1.0").tPackage:GetLocale("ThisIsMe", true)
+	GeminiLocale = Apollo.GetPackage("Gemini:Locale-1.0").tPackage
+	Locale = GeminiLocale:GetLocale("ThisIsMe", true)
 	self:LoadEntries()
 end
 
@@ -199,6 +201,7 @@ function ThisIsMe:OnDocLoaded()
 			Apollo.AddAddonErrorText(self, "Could not load the options window.")
 			return
 		end
+		GeminiLocale:TranslateWindow(Locale, self.wndOptions)
 		self.wndOptions:Show(false, true)
 	end
 	self.startupTimer = ApolloTimer.Create(5, false, "CheckComms", self)
@@ -858,6 +861,8 @@ function ThisIsMe:PopulateProfileListImpl()
 	-- make sure the profile list is empty to start with
 	self:DestroyProfileList()
 	
+	GeminiLocale:TranslateWindow(Locale, self.wndMain)
+	
     -- add profiles
 	local ordered = {}
 	for k, v in pairs(self.characterProfiles) do
@@ -927,17 +932,17 @@ function ThisIsMe:SetItem(item, name, profile)
 		wndItemText:SetTextColor(kcrNormalText)	end
 	local wndIngameName = item:FindChild("IngameName")
 	if wndIngameName then
-		wndIngameName:SetText(" IG: " .. name)
+		wndIngameName:SetText(" " .. Locale["IngameNameShorthand"] .. ": " .. name)
 	end
 	local wndVersionText = item:FindChild("Version")
 	local upToDate = false
 	if wndVersionText then
 		if (profile.Version ~= nil and profile.StoredVersion ~= nil and profile.Version == profile.StoredVersion) or name == self:Character() then
-			wndVersionText:SetText(" Up to date")
+			wndVersionText:SetText(" " .. Locale["Uptodate"])
 			wndVersionText:SetTextColor(defaultText)
 			upToDate = true
 		else
-			wndVersionText:SetText(" Outdated!")
+			wndVersionText:SetText(" " .. Locale["Outdated"])
 			wndVersionText:SetTextColor(defaultText)
 		end
 		if profile.ProtocolVersion ~= nil and type(profile.ProtocolVersion) == "number" and not self:AllowedProtocolVersion(profile.ProtocolVersion) then
@@ -1004,6 +1009,7 @@ function ThisIsMe:SetItem(item, name, profile)
 			portrait:SetBGColor(portraitNeutral)
 		end
 	end
+	GeminiLocale:TranslateWindow(Locale, item)
 end
 
 function ThisIsMe:UpdateItemByName(name)
@@ -1033,38 +1039,38 @@ function ThisIsMe:PopulateProfileView()
 		self.editedProfile.StoredVersion = self.editedProfile.Version
 		profile = self.editedProfile
 		
-		item = self:AddProfileEntry(self.wndProfileContainer, "Name")
+		item = self:AddProfileEntry(self.wndProfileContainer, Locale["Name"])
 		item:AddTextBox(self:GetProfileName(self.profileCharacter), "Name")
 		
-		item = self:AddProfileEntry(self.wndProfileContainer, "Gender")
+		item = self:AddProfileEntry(self.wndProfileContainer, Locale["Gender"])
 		item:AddDropdownBox(self.genders, profile.Gender or 1, profile, "Gender")
 		if self.options.debugMode then item:AddSubButtons(true) end
 		
-		item = self:AddProfileEntry(self.wndProfileContainer, "Race")
+		item = self:AddProfileEntry(self.wndProfileContainer, Locale["Race"])
 		item:AddDropdownBox(self.races, profile.Race or 1, profile, "Race")
 		if self.options.debugMode then item:AddSubButtons(true) end
 		
-		item = self:AddProfileEntry(self.wndProfileContainer, "Age")
+		item = self:AddProfileEntry(self.wndProfileContainer, Locale["Age"])
 		item:AddDropdownBox(self.ages, profile.Age or 1, profile, "Age")
 		if self.options.debugMode then item:AddSubButtons(true) end
 		
-		item = self:AddProfileEntry(self.wndProfileContainer, "Height")
+		item = self:AddProfileEntry(self.wndProfileContainer, Locale["Height"])
 		item:AddDropdownBox(self.heights, profile.Length or 1, profile, "Length")
 		if self.options.debugMode then item:AddSubButtons(true) end
 		
-		item = self:AddProfileEntry(self.wndProfileContainer, "Body Type")
+		item = self:AddProfileEntry(self.wndProfileContainer, Locale["Body Type"])
 		item:AddDropdownBox(self.bodyTypes, profile.BodyType or 1, profile, "BodyType")
 		if self.options.debugMode then item:AddSubButtons(true) end
 		
-		item = self:AddProfileEntry(self.wndProfileContainer, "Hair Length")
+		item = self:AddProfileEntry(self.wndProfileContainer, Locale["Hair Length"])
 		item:AddDropdownBox(self.hairLength, profile.HairLength or 1, profile, "HairLength")
 		if self.options.debugMode then item:AddSubButtons(true) end
 		
-		item = self:AddProfileEntry(self.wndProfileContainer, "Hair Quality")
+		item = self:AddProfileEntry(self.wndProfileContainer, Locale["Hair Quality"])
 		item:AddDropdownBox(self.hairQuality, profile.HairQuality or 1, profile, "HairQuality")
 		if self.options.debugMode then item:AddSubButtons(true) end
 		
-		item = self:AddProfileEntry(self.wndProfileContainer, "Hair Style")
+		item = self:AddProfileEntry(self.wndProfileContainer, Locale["Hair Style"])
 		item:AddDropdownBox(self.hairStyle, profile.HairStyle or 1, profile, "HairStyle")
 		if self.options.debugMode then item:AddSubButtons(true) end
 	else
@@ -1104,6 +1110,7 @@ function ThisIsMe:PopulateProfileView()
 		end
 	end
 	self.wndProfileContainer:ArrangeChildrenVert()
+	GeminiLocale:TranslateWindow(Locale, self.wndProfile)
 end
 
 -- clear the item list
@@ -1237,7 +1244,7 @@ function ThisIsMe:OpenOptions()
 	self.wndOptions:Invoke()
 	local debugText = self.wndOptions:FindChild("DebugLevel")
 	if debugText then
-		debugText:SetText("  Debug Level: " .. (self.options.logLevel or 0))
+		debugText:SetText("  " .. Locale["DebugLevel"] .. ": " .. (self.options.logLevel or 0))
 	end
 	local debugSlider = self.wndOptions:FindChild("DebugLevelBar")
 	if debugSlider then
@@ -1249,7 +1256,7 @@ function ThisIsMe:OpenOptions()
 	end
 	local protocolText = self.wndOptions:FindChild("ProtocolVersion")
 	if protocolText then
-		protocolText:SetText("  Protocol Version: " .. (self.options.protocolVersion or self.protocolVersionMin))
+		protocolText:SetText("  " .. Locale["Protocol Version"] .. ": " .. (self.options.protocolVersion or self.protocolVersionMin))
 	end
 	local protocolSlider = self.wndOptions:FindChild("ProtocolVersionBar")
 	if protocolSlider then
@@ -1290,7 +1297,7 @@ function ThisIsMe:OnDebugLevelChange( wndHandler, wndControl, fNewValue, fOldVal
 	if self.wndOptions ~= nil then
 		local debugText = self.wndOptions:FindChild("DebugLevel")
 		if debugText then
-			debugText:SetText("  Debug Level: " .. fNewValue)
+			debugText:SetText("  " .. Locale["DebugLevel"] .. ": " .. fNewValue)
 		end
 	end
 end
@@ -1300,7 +1307,7 @@ function ThisIsMe:OnProtocolVersionChange( wndHandler, wndControl, fNewValue, fO
 	if self.wndOptions ~= nil then
 		local debugText = self.wndOptions:FindChild("ProtocolVersion")
 		if debugText then
-			debugText:SetText("  Protocol Version: " .. fNewValue)
+			debugText:SetText("  " .. Locale["Protocol Version"] .. ": " .. fNewValue)
 		end
 	end
 end
