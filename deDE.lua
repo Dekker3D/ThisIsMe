@@ -1,27 +1,27 @@
 local L = Apollo.GetPackage("Gemini:Locale-1.0").tPackage:NewLocale("ThisIsMe", "deDE")
 if not L then return end
 L["N/A"] = true
-L["Other"] = true
-L["Plain"] = true
-L["Pig-tails"] = true
+L["Other"] = "Andere"
+L["Plain"] = "Einfache Haare"
+L["Pig-tails"] = "Zöpfe"
 L["Pony-tail"] = true
 L["Mohawk"] = true
 L["Dreadlocks"] = true
 L["Pompadour"] = true
 L["Mullet"] = true
-L["Comb-over"] = true
+L["Comb-over"] = "Kamm-über"
 
-L["Bald"] = true
-L["Short/Small"] = true
-L["Shoulder-Length/Medium"] = true
-L["Waist-Length/Large"] = true
+L["Bald"] = "Kahl"
+L["Short/Small"] = "Kurz/Klein"
+L["Shoulder-Length/Medium"] = "Schulterlänge/Mittelgroße"
+L["Waist-Length/Large"] = "Hüftumfang/Groß"
 L["Hip-Length/Huge"] = true
 		
 L["Lustrous"] = true
-L["Glossy"] = true
+L["Glossy"] = "Glänzend"
 L["Dull"] = true
-L["Gelled"] = true
-L["Styled"] = true
+L["Gelled"] = "Geliert"
+L["Styled"] = "Gestylt"
 L["Well Kept"] = true
 L["Neatly Combed"] = true
 L["Plain"] = true
