@@ -19,7 +19,7 @@ local LibCommExt = nil
 local ProfileWindow = {}
 local ThisIsMeInst = nil
 
-local Major, Minor, Patch, Suffix = 0, 3, 7, 2 -- 10 is j
+local Major, Minor, Patch, Suffix = 0, 3, 8, 0 -- 10 is j
 local YOURADDON_CURRENT_VERSION = string.format("%d.%d.%d", Major, Minor, Patch)
 
 local Locale = nil
@@ -92,7 +92,7 @@ function ThisIsMe:new(o)
 	o.messagesPerSecond = 5
 	
 	o.protocolVersionMin = 4
-	o.protocolVersionMax = 5
+	o.protocolVersionMax = 4
 	
 	o.profileRequestBuffer = {}
 	
@@ -130,6 +130,8 @@ function ThisIsMe:new(o)
 	for k, v in pairs(o.dropdownTextMap) do
 		o.dropdownTextMap[v] = k
 	end
+	
+	o.myCharacters = {}
 	
 	o.TargetFrame = nil
 	
@@ -201,12 +203,26 @@ function ThisIsMe:OnDocLoaded()
 			Apollo.AddAddonErrorText(self, "Could not load the options window.")
 			return
 		end
-		GeminiLocale:TranslateWindow(Locale, self.wndOptions)
 		self.wndOptions:Show(false, true)
+		
+		self.wndCLWarn = Apollo.LoadForm(self.xmlDoc, "ClearListWarning", nil, self)
+		if self.wndCLWarn == nil then
+			Apollo.AddAddonErrorText(self, "Could not load the list-clearing warning window.")
+			return
+		end
+		self.wndCLWarn:Show(false, true)
+		
+		GeminiLocale:TranslateWindow(Locale, self.wndOptions)
 	end
 	self.startupTimer = ApolloTimer.Create(5, false, "CheckComms", self)
 	self.dataCheckTimer = ApolloTimer.Create(1, true, "CheckData", self)
-	self.MyHeartbeatTimer = ApolloTimer.Create(60, true, "sendHeartbeatMessage", self)
+	self:resetHeartbeat()
+	
+	self:Print(1, "Currently known alts:")
+	for k, v in pairs(self.myCharacters) do
+		self:Print(1, k)
+	end
+	self.myCharacters[GameLib.GetPlayerCharacterName()] = true
 end
 
 function ThisIsMe:OnInterfaceMenuListHasLoaded()
@@ -732,7 +748,7 @@ function ThisIsMe:OnSave(eLevel)
 		end
 	end
 	self.options.useDefaultProtocolVersion = (self.options.protocolVersion == self.defaultProtocolVersion)
-	return {characterProfiles = self.characterProfiles, options = self.options}
+	return {characterProfiles = self.characterProfiles, options = self.options, myCharacters = self.myCharacters}
 end
 
 function ThisIsMe:OnRestore(eLevel, tData)
@@ -778,6 +794,11 @@ function ThisIsMe:OnRestore(eLevel, tData)
 			self.options.protocolVersion = self.defaultProtocolVersion
 		end
 		self.dataLoaded = true
+		if tData.myCharacters then
+			for k, v in pairs(tData.myCharacters) do
+				self.myCharacters[k] = v
+			end
+		end
 	end
 	self:CheckData()
 end
@@ -986,6 +1007,10 @@ function ThisIsMe:SetItem(item, name, profile)
 	if wndViewButton then
 		wndViewButton:SetData(name)
 	end
+	local wndKeepButton = item:FindChild("KeepButton")
+	if wndKeepButton then
+		wndKeepButton:SetData(name)
+	end
 	local portrait = item:FindChild("Portrait")
 	if portrait then
 		if profile.Race == 4 then
@@ -1008,6 +1033,11 @@ function ThisIsMe:SetItem(item, name, profile)
 		else
 			portrait:SetBGColor(portraitNeutral)
 		end
+	end
+	local keep = item:FindChild("KeepButton")
+	if keep then
+		if profile.keep == nil then profile.keep = false end
+		keep:SetCheck(profile.keep)
 	end
 	GeminiLocale:TranslateWindow(Locale, item)
 end
@@ -1169,6 +1199,10 @@ function ThisIsMe:CompareTableEqualBoth(table, table2)
 	return self:CompareTableEqual(table, table2) and self:CompareTableEqual(table2, table)
 end
 
+function ThisIsMe:OnClearListClick( wndHandler, wndControl, eMouseButton )
+	self:OpenClearListWarning()
+end
+
 ---------------------------------------------------------------------------------------------------
 -- ListItem Functions
 ---------------------------------------------------------------------------------------------------
@@ -1201,6 +1235,16 @@ function ThisIsMe:OnViewButtonClick( wndHandler, wndControl, eMouseButton )
 		self.profileEdit = false
 		self:OpenProfileView()
 		self:Print(9, "Clicked profile view button")
+	end
+end
+
+function ThisIsMe:OnKeepToggle( wndHandler, wndControl, eMouseButton )
+	local player = wndControl:GetData()
+	if player ~= nil then
+		local prof = self.characterProfiles[player]
+		if prof ~= nil then
+			prof.keep = wndControl:IsChecked()
+		end
 	end
 end
 
@@ -1315,6 +1359,46 @@ end
 function ThisIsMe:OnDebugModeToggle( wndHandler, wndControl, eMouseButton )
 	self.newOptions.debugMode = wndControl:IsChecked()
 end
+
+---------------------------------------------------------------------------------------------------
+-- ClearListWarning Functions
+---------------------------------------------------------------------------------------------------
+
+function ThisIsMe:OpenClearListWarning()
+	self.wndCLWarn:Invoke()
+	local nameArea = self.wndCLWarn:FindChild("NameArea")
+	if nameArea == nill then return end
+	nameArea:DestroyChildren()
+	for k, v in pairs(self.myCharacters) do
+		self:Print(1, "Creating list entry")
+		local entry = Apollo.LoadForm(self.xmlDoc, "ClearListWarningEntry", nameArea, self)
+		if entry ~= nil then
+			self:Print(1, "List entry created")
+			entry:SetText(k)
+		end
+	end
+	nameArea:ArrangeChildrenVert()
+end
+
+function ThisIsMe:OnClearListProceed( wndHandler, wndControl, eMouseButton )
+	self.wndCLWarn:Close()
+	for k, v in pairs(self.characterProfiles) do
+		if (not self:IsMyAlt(name)) and v.keep ~= true then
+			self.characterProfiles[k] = nil
+		end
+	end
+	self:PopulateProfileList()
+end
+
+function ThisIsMe:OnClearListCancel( wndHandler, wndControl, eMouseButton )
+	self.wndCLWarn:Close()
+end
+
+function ThisIsMe:IsMyAlt(name)
+	if self.myCharacters[name] == true then return true
+	else return false end
+end
+
 ---------------------------------------------------------------------------------------------------
 -- Network Functions
 ---------------------------------------------------------------------------------------------------
@@ -1825,12 +1909,16 @@ function ThisIsMe:AddBufferedMessage(message, recipient, protocolVersion, priori
 		self.Comm:SendMessage(recipient, message, protocolVersion or self.options.protocolVersion, priority or 0)
 	end
 	if recipient == nil then
-		if self.MyHeartbeatTimer ~= nil then
-			self.MyHeartbeatTimer:Stop()
-			self.MyHeartbeatTimer = nil
-		end
-		self.MyHeartbeatTimer = ApolloTimer.Create(60, true, "sendHeartbeatMessage", self)
+		self:resetHeartbeat()
 	end
+end
+
+function ThisIsMe:resetHeartbeat()
+	if self.MyHeartbeatTimer ~= nil then
+		self.MyHeartbeatTimer:Stop()
+		self.MyHeartbeatTimer = nil
+	end
+	self.MyHeartbeatTimer = ApolloTimer.Create(60, true, "sendHeartbeatMessage", self)
 end
 
 ---------------------------------------------------------------------------------------------------
