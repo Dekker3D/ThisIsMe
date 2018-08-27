@@ -15,13 +15,20 @@ require "CombatFloater"
 -- ThisIsMe Module Definition
 -----------------------------------------------------------------------------------------------
 local ThisIsMe = {}
+local LibCommExt = nil
 local ProfileWindow = {}
 local ThisIsMeInst = nil
+
+local Major, Minor, Patch, Suffix = 0, 3, 8, 1 -- 10 is j
+local YOURADDON_CURRENT_VERSION = string.format("%d.%d.%d", Major, Minor, Patch)
+
+local Locale = nil
+local GeminiLocale = nil
  
 -----------------------------------------------------------------------------------------------
 -- Constants
 -----------------------------------------------------------------------------------------------
--- e.g. local kiExampleVariableMax = 999
+
 local kcrSelectedText = ApolloColor.new("UI_BtnTextHoloPressed")
 local kcrNormalText = ApolloColor.new("UI_BtnTextHoloNormal")
 local redErrorText = ApolloColor.new("AddonError")
@@ -37,216 +44,16 @@ local portraitNeutral = ApolloColor.new(1.2, 0.9, 1, 1)
 -- Initialization
 -----------------------------------------------------------------------------------------------
 function ThisIsMe:new(o)
-	o = o or {}
-	setmetatable(o, self)
-	self.__index = self 
-	
-	-- initialize variables here
+    o = o or {}
+    setmetatable(o, self)
+    self.__index = self 
+
+    -- initialize variables here
 	o.profileListEntries = {} -- keep track of all the list items
 	o.characterProfiles = {}
-	
-	o.messageQueue = {}
+	o.sortedCharacterProfiles = {}
 	
 	o.seenEveryone = false
-		
-	o.hairStyle = {
-		"N/A",
-		"Other",
-		"Plain",
-		"Pig-tails",
-		"Pony-tail",
-		"Mohawk",
-		"Dreadlocks",
-		"Pompadour",
-		"Mullet",
-		"Comb-over"
-	}
-	
-	o.hairLength = {
-		"N/A",
-		"Other",
-		"Bald",
-		"Short/small",
-		"Shoulder-Length/medium",
-		"Waist-Length/large",
-		"Ass-Length/huge"
-	}
-	
-	o.hairQuality = {
-		"N/A",
-		"Other",
-		"Lustrous",
-		"Glossy",
-		"Dull",
-		"Gelled",
-		"Styled",
-		"Well Kept",
-		"Neatly Combed",
-		"Plain",
-		"Messy",
-		"Untamed",
-		"Leafy",
-		"Unclean",
-		"Ragged",
-		"Very Curly",
-		"Curly",
-		"Spikey",
-		"Braided",
-		"Crystalline",
-		"Full",
-		"Thinning"
-	}
-	
-	o.hairColour = {
-		"N/A",
-		"Other",
-		"Gray"
-	}
-	
-	o.tailSize = {
-		"N/A",
-		"Other",
-		"Long",
-		"Short",
-		"Cut Off",
-		"Cut Short",
-		"Thick",
-		"Muscular",
-		"Thin",
-		"Ratty"
-	}
-	
-	o.tailState = {
-		"N/A",
-		"Other",
-		"Fluffy",
-		"Gloriously Fluffy",
-		"Bald",
-		"Patchy",
-		"Scaled",
-		"Leathery",
-		"Cracked",
-		"Dirty"
-	}
-	
-	o.tailDecoration = {
-		"N/A",
-		"Other",
-		"Circlet/Band",
-		"Pierced - Loops",
-		"Pierced - Studs"
-	}
-	
-	o.talentTypes = {
-		"N/A",
-		"Other",
-		"Jack of all trades",
-		"Fire Magic",
-		"Water Magic",
-		"Earth Magic",
-		"Air Magic",
-		"Logic Magic",
-		"Life Magic",
-		"Nature-Speaker",
-		"Weave Using",
-		"Technomancer",
-		"Alchemy",
-		"Voodoo",
-		"Excellent Hearing",
-		"Excellent Sight",
-		"Excellent Smell",
-		"Heightened Senses",
-		"Marksmanship",
-		"Hunting",
-		"Combat/Battle",
-		"Military Strategy",
-		"Engineering",
-		"Hacking",
-		"Piloting",
-		"Racing",
-		"Healing/Medicine",
-		"Cooking",
-		"Brewing",
-		"Tea-Making",
-		"Diplomacy",
-		"Storytelling",
-		"Comforting"
-	}
-	
-	o.genders = {
-		"N/A",
-		"Other",
-		"Male",
-		"Female",
-		"Transmale",
-		"Transfemale",
-		"Genderless" -- tempted to add "Mayonnaise"
-	}
-	
-	o.races = {
-		"N/A",
-		"Other",
-		"Aurin",
-		"Chua",
-		"Draken",
-		"Granok",
-		"Human",
-		"Mechari",
-		"Mordesh",
-		"Cassian Highborn",
-		"Cassian Lowborn",
-		"Luminai"
-	}
-	
-	o.ages = {
-		"N/A",
-		"Other",
-		"Baby",
-		"Child",
-		"Teen",
-		"Young Adult",
-		"Adult",
-		"Middle-Aged",
-		"Old",
-		"Ancient",
-		"Ageless"
-	}
-	
-	o.bodyTypes = {
-		"N/A",
-		"Other",
-		"Skin And Bones",
-		"Slim",
-		"Average",
-		"Thick",
-		"Chunky",
-		"Wirey",
-		"Toned",
-		"Athletic",
-		"Muscular",
-		"Top-Heavy",
-		"Pear-Shaped",
-		"Perfect Hourglass",
-		"Barrel-Chested"
-	}
-	
-	o.heights = {
-		"N/A",
-		"Other",
-		"Tiny",
-		"Short",
-		"Below Average",
-		"Average",
-		"Above Average",
-		"Tall",
-		"Gargantuan"
-	}
-	
-	o.sortModes = {
-		"Newest First",
-		"By Character Name",
-		"By Customized Name"
-	}
 	
 	o.sortMode = 1
 	o.sortInvert = false
@@ -258,11 +65,12 @@ function ThisIsMe:new(o)
 		["6"]={"charactercreate:sprCharC_Finalize_RaceGranokM", "charactercreate:sprCharC_Finalize_RaceGranokF"},
 		["7"]={"charactercreate:sprCharC_Finalize_RaceExileM", "charactercreate:sprCharC_Finalize_RaceExileF"},
 		["8"]={"charactercreate:sprCharC_Finalize_RaceMechariM", "charactercreate:sprCharC_Finalize_RaceMechariF"},
-		["9"]={"charactercreate:sprCharC_Finalize_RaceMordeshM", "charactercreate:sprCharC_Finalize_RaceMordeshF"}
+		["9"]={"charactercreate:sprCharC_Finalize_RaceMordeshM", "charactercreate:sprCharC_Finalize_RaceMordeshF"},
+		["10"]={"charactercreate:sprCharC_Finalize_RaceDomM", "charactercreate:sprCharC_Finalize_RaceDomF"},
+		["11"]={"charactercreate:sprCharC_Finalize_RaceDomM", "charactercreate:sprCharC_Finalize_RaceDomF"}
 	}
 	o.portraitUnknown = "charactercreate:sprCharC_Finalize_SkillLevel1"
 	o.portraitChua = "charactercreate:sprCharC_Finalize_RaceChua"
-	o.portraitCassian = {"charactercreate:sprCharC_Finalize_RaceDomM", "charactercreate:sprCharC_Finalize_RaceDomF"}
 	
 	o.Comm = nil
 	o.channel = "__TIM__"
@@ -283,8 +91,10 @@ function ThisIsMe:new(o)
 	o.messageCharacterLimit = 80
 	o.messagesPerSecond = 5
 	
-	o.protocolVersionMin = 1
+	o.protocolVersionMin = 4
 	o.protocolVersionMax = 4
+	
+	o.profileRequestBuffer = {}
 	
 	o.defaultProtocolVersion = 4
 	
@@ -321,6 +131,10 @@ function ThisIsMe:new(o)
 		o.dropdownTextMap[v] = k
 	end
 	
+	o.myCharacters = {}
+	
+	o.TargetFrame = nil
+	
     return o
 end
 
@@ -332,7 +146,8 @@ function ThisIsMe:Init()
 	local bHasConfigureFunction = false
 	local strConfigureButtonText = ""
 	local tDependencies = {
-		"Gemini:Timer-1.0"
+		"Gemini:Timer-1.0",
+		"LibCommExt-1.0"
 	}
     Apollo.RegisterAddon(self, bHasConfigureFunction, strConfigureButtonText, tDependencies)
 end
@@ -343,6 +158,10 @@ function ThisIsMe:OnLoad()
 	self.xmlDoc:RegisterCallback("OnDocLoaded", self)
 	GeminiTimer = Apollo.GetPackage("Gemini:Timer-1.0").tPackage
 	GeminiTimer:Embed(self)
+	LibCommExt = Apollo.GetPackage("LibCommExt-1.0").tPackage
+	GeminiLocale = Apollo.GetPackage("Gemini:Locale-1.0").tPackage
+	Locale = GeminiLocale:GetLocale("ThisIsMe", true)
+	self:LoadEntries()
 end
 
 function ThisIsMe:OnDocLoaded()
@@ -365,9 +184,11 @@ function ThisIsMe:OnDocLoaded()
 		-- Register handlers for events, slash commands and timer, etc.
 		-- e.g. Apollo.RegisterEventHandler("KeyDown", "OnKeyDown", self)
 		Apollo.RegisterSlashCommand("tim", "OnThisIsMeOn", self)
+		Apollo.RegisterSlashCommand("timvi", "OnTestCommand", self)
 		Apollo.RegisterEventHandler("InterfaceMenuListHasLoaded", "OnInterfaceMenuListHasLoaded", self)
 		self:OnInterfaceMenuListHasLoaded()
 		Apollo.RegisterEventHandler("ToggleMyAddon", "OnThisIsMeOn", self)
+		Apollo.RegisterEventHandler("TargetUnitChanged", "OnTargetUnitChanged", self)
 
 		self.wndProfile = Apollo.LoadForm(self.xmlDoc, "Profile", nil, self)
 		if self.wndProfile == nil then
@@ -383,13 +204,250 @@ function ThisIsMe:OnDocLoaded()
 			return
 		end
 		self.wndOptions:Show(false, true)
+		
+		self.wndCLWarn = Apollo.LoadForm(self.xmlDoc, "ClearListWarning", nil, self)
+		if self.wndCLWarn == nil then
+			Apollo.AddAddonErrorText(self, "Could not load the list-clearing warning window.")
+			return
+		end
+		self.wndCLWarn:Show(false, true)
+		
+		GeminiLocale:TranslateWindow(Locale, self.wndOptions)
 	end
 	self.startupTimer = ApolloTimer.Create(5, false, "CheckComms", self)
 	self.dataCheckTimer = ApolloTimer.Create(1, true, "CheckData", self)
+	self:resetHeartbeat()
+	
+	self:Print(1, "Currently known alts:")
+	for k, v in pairs(self.myCharacters) do
+		self:Print(1, k)
+	end
+	self.myCharacters[GameLib.GetPlayerCharacterName()] = true
 end
 
 function ThisIsMe:OnInterfaceMenuListHasLoaded()
 	Event_FireGenericEvent("InterfaceMenuList_NewAddOn", "This Is Me", {"ToggleMyAddon", "", "CRB_HUDAlerts:sprAlert_CallBase"})
+	Event_FireGenericEvent("OneVersion_ReportAddonInfo", "This Is Me", Major, Minor, Patch, Suffix)
+end
+
+function ThisIsMe:ConnectToTargetFrame()
+	if self.TargetFrameAddon == nil then
+		self.VanillaFrame = Apollo.GetAddon("TargetFrame")
+		self.TargetFrameAddon = self.VanillaFrame
+	end
+	if self.TargetFrameAddon == nil then
+		self.KuronaFrames = Apollo.GetAddon("KuronaFrames")
+		self.TargetFrameAddon = self.KuronaFrames
+	end
+	if self.TargetFrameAddon == nil then
+		self.ForgeFrames = Apollo.GetAddon("ForgeUI_UnitFrames")
+		self.TargetFrameAddon = self.ForgeFrames
+	end
+	if self.TargetFrameButton then
+		self.TargetFrameButton:Destroy()
+		self.TargetFrameButton = nil
+	end
+	if self.CurrentTarget ~= nil and self.CurrentTarget:IsACharacter() and self.characterProfiles[self.CurrentTarget:GetName()] ~= nil then
+		if self.VanillaFrame then
+			local targetFrame = self.VanillaFrame.luaTargetFrame
+			if targetFrame then
+				targetFrame = targetFrame.wndLargeFrame
+				if targetFrame then
+					self.TargetFrame = targetFrame
+					self.TargetFrameButton = Apollo.LoadForm(self.xmlDoc, "TIMProfileButton", targetFrame, self)
+				end
+			end
+		elseif self.KuronaFrames then
+			local targetFrame = self.KuronaFrames.targetFrame
+			if targetFrame then
+				self.TargetFrameButton = Apollo.LoadForm(self.xmlDoc, "TIMKuronaButton", targetFrame, self)
+			end
+		elseif self.ForgeFrames then
+			local targetFrame = self.ForgeFrames.wndTargetFrame
+			if targetFrame then
+				self:Print(1, "Forge!")
+				self.TargetFrameButton = Apollo.LoadForm(self.xmlDoc, "TIMForgeButton", targetFrame, self)
+			end
+		end
+	end
+end
+
+function ThisIsMe:OnTargetUnitChanged(targetID)
+	self.CurrentTarget = targetID
+	self:ConnectToTargetFrame()
+end
+
+function ThisIsMe:OpenProfileViaTargetFrame()
+	if self.CurrentTarget ~= nil then
+		self.profileEdit = false
+		self.profileCharacter = self.CurrentTarget:GetName()
+		self:OpenProfileView()
+	end
+end
+
+function ThisIsMe:LoadEntries()
+	self.hairStyle = {
+		Locale["N/A"],
+		Locale["Other"],
+		Locale["Plain"],
+		Locale["Pig-tails"],
+		Locale["Pony-tail"],
+		Locale["Mohawk"],
+		Locale["Dreadlocks"],
+		Locale["Pompadour"],
+		Locale["Mullet"],
+		Locale["Comb-over"]
+	}
+	
+	self.hairLength = {
+		Locale["N/A"],
+		Locale["Other"],
+		Locale["Bald"],
+		Locale["Short/Small"],
+		Locale["Shoulder-Length/Medium"],
+		Locale["Waist-Length/Large"],
+		Locale["Hip-Length/Huge"]
+	}
+	
+	self.hairQuality = {
+		Locale["N/A"],
+		Locale["Other"],
+		Locale["Lustrous"],
+		Locale["Glossy"],
+		Locale["Dull"],
+		Locale["Gelled"],
+		Locale["Styled"],
+		Locale["Well Kept"],
+		Locale["Neatly Combed"],
+		Locale["Plain"],
+		Locale["Messy"],
+		Locale["Untamed"],
+		Locale["Leafy"],
+		Locale["Unclean"],
+		Locale["Ragged"],
+		Locale["Very Curly"],
+		Locale["Curly"],
+		Locale["Spikey"],
+		Locale["Braided"],
+		Locale["Crystalline"],
+		Locale["Full"],
+		Locale["Thinning"]
+	}
+	
+	self.hairColour = {
+		Locale["N/A"],
+		Locale["Other"],
+		Locale["Gray"]
+	}
+	
+	self.tailSize = {
+		Locale["N/A"],
+		Locale["Other"],
+		Locale["Long"],
+		Locale["Short"],
+		Locale["Cut Off"],
+		Locale["Cut Short"],
+		Locale["Thick"],
+		Locale["Muscular"],
+		Locale["Thin"],
+		Locale["Ratty"]
+	}
+	
+	self.tailState = {
+		Locale["N/A"],
+		Locale["Other"],
+		Locale["Fluffy"],
+		Locale["Gloriously Fluffy"],
+		Locale["Bald"],
+		Locale["Patchy"],
+		Locale["Scaled"],
+		Locale["Leathery"],
+		Locale["Cracked"],
+		Locale["Dirty"]
+	}
+	
+	self.tailDecoration = {
+		Locale["N/A"],
+		Locale["Other"],
+		Locale["Circlet/Band"],
+		Locale["Pierced - Loops"],
+		Locale["Pierced - Studs"]
+	}
+		
+	self.genders = {
+		Locale["N/A"],
+		Locale["Other"],
+		Locale["Male"],
+		Locale["Female"],
+		Locale["Transmale"],
+		Locale["Transfemale"],
+		Locale["Genderless"]
+	}
+	
+	self.races = {
+		Locale["N/A"],
+		Locale["Other"],
+		Locale["Aurin"],
+		Locale["Chua"],
+		Locale["Draken"],
+		Locale["Granok"],
+		Locale["Human"],
+		Locale["Mechari"],
+		Locale["Mordesh"],
+		Locale["Cassian Highborn"],
+		Locale["Cassian Lowborn"],
+		Locale["Luminai"]
+	}
+	
+	self.ages = {
+		Locale["N/A"],
+		Locale["Other"],
+		Locale["Baby"],
+		Locale["Child"],
+		Locale["Teen"],
+		Locale["Young Adult"],
+		Locale["Adult"],
+		Locale["Middle-Aged"],
+		Locale["Old"],
+		Locale["Ancient"],
+		Locale["Ageless"]
+	}
+	
+	self.bodyTypes = {
+		Locale["N/A"],
+		Locale["Other"],
+		Locale["Skin And Bones"],
+		Locale["Slim"],
+		Locale["Average"],
+		Locale["Thick"],
+		Locale["Chunky"],
+		Locale["Wirey"],
+		Locale["Toned"],
+		Locale["Athletic"],
+		Locale["Muscular"],
+		Locale["Top-Heavy"],
+		Locale["Pear-Shaped"],
+		Locale["Perfect Hourglass"],
+		Locale["Barrel-Chested"]
+	}
+	
+	self.heights = {
+		Locale["N/A"],
+		Locale["Other"],
+		Locale["Tiny"],
+		Locale["Short"],
+		Locale["Below Average"],
+		Locale["Average"],
+		Locale["Above Average"],
+		Locale["Tall"],
+		Locale["Gargantuan"]
+	}
+	
+	self.sortModes = {
+		Locale["Newest First"],
+		Locale["By Character Name"],
+		Locale["By Customized Name"]
+	}
 end
 
 ---------------------------------------------------------------------------------------------------
@@ -436,13 +494,13 @@ function ThisIsMe:GetRaceEnum(unit)
 	if unit ~= nil then
 		local unitRace = unit:GetRaceId()
 		local race = nil
-		if unitRace == GameLib.CodeEnumRace.Aurin then race = 3
-		elseif unitRace == GameLib.CodeEnumRace.Chua then race = 4
-		elseif unitRace == GameLib.CodeEnumRace.Draken then race = 5
-		elseif unitRace == GameLib.CodeEnumRace.Granok then race = 6
+		if unitRace == GameLib.CodeEnumRace.Aurin then race = 3; self.currentFaction = "E"
+		elseif unitRace == GameLib.CodeEnumRace.Chua then race = 4; self.currentFaction = "D"
+		elseif unitRace == GameLib.CodeEnumRace.Draken then race = 5; self.currentFaction = "D"
+		elseif unitRace == GameLib.CodeEnumRace.Granok then race = 6; self.currentFaction = "E"
 		elseif unitRace == GameLib.CodeEnumRace.Human then race = 7
-		elseif unitRace == GameLib.CodeEnumRace.Mechari then race = 8
-		elseif unitRace == GameLib.CodeEnumRace.Mordesh then race = 9
+		elseif unitRace == GameLib.CodeEnumRace.Mechari then race = 8; self.currentFaction = "D"
+		elseif unitRace == GameLib.CodeEnumRace.Mordesh then race = 9; self.currentFaction = "E"
 		end
 		return race
 	end
@@ -529,7 +587,7 @@ function ThisIsMe:Character()
 end
 
 function ThisIsMe:Faction()
-	if self.currentFaction == nil and self:Unit() ~= nil then
+	if (self.currentFaction == nil or self.currentFaction == "?") and self:Unit() ~= nil then
 		local factionNum = self:Unit():GetFaction()
 		if factionNum  == 166 then
 			self.currentFaction = "D"
@@ -558,10 +616,11 @@ end
 
 function ThisIsMe:CheckData()
 	self:Profile() -- just try to get all the data we can, while we're at it.
-	
-	if self.profileEmptyCheck ~= true and self.currentProfile ~= nil then
-		if next(self:Profile()) == nil or self:Profile().Version == nil then
+		
+	if self.profileEmptyCheck ~= true and self:Profile() ~= nil then
+		if next(self.currentProfile) == nil or self.currentProfile.Version == nil then
 			self.characterProfiles[self:Character()] = self:GetProfileDefaults(self:Character(), self:Unit())
+			self.characterProfiles[self:Character()].OwnProfile = true
 			self:Print(5, "Profile was empty/unusable; resetting.")
 		else
 			self:Print(9, "Profile found; Name: " .. self.currentCharacter)
@@ -572,7 +631,7 @@ function ThisIsMe:CheckData()
 	
 	if self.dataLoadedCheck ~= true and self.dataLoaded == true and self.currentCharacter ~= nil then
 		if next(self.characterProfiles) == nil then
-			self.characterProfiles[self.currentCharacter] = self:GetProfileDefaults(self.currentCharacter, self.currentUnit)
+			self.characterProfiles[self:Character()] = self:GetProfileDefaults(self:Character(), self:Unit())
 		end
 		for k, v in self:sipairs(self.characterProfiles) do
 			self:UpdateOnlineStatus(k)
@@ -581,7 +640,7 @@ function ThisIsMe:CheckData()
 		self:Print(9, "Checked loaded data for content.")
 	end
 	
-	if self.commCheck ~= true and self.Comm ~= nil and self.Comm:IsReady() and self.currentFaction ~= nil and self.currentCharacter ~= nil then
+	if self.commCheck ~= true and self.Comm ~= nil and self.Comm:IsReady() and self.currentFaction ~= nil and self.currentFaction ~= "?" and self.currentCharacter ~= nil then
 		self.commCheck = true
 		if not self.announcedSelf then
 			self:SendPresenceMessage()
@@ -634,6 +693,7 @@ end
 function ThisIsMe:OnEditProfileClick()
 	self.profileEdit = true
 	self.profileCharacter = self:Character()
+	self:ApplyDefaultTextMap(self.profileCharacter)
 	self:OpenProfileView()
 end
 
@@ -667,6 +727,7 @@ end
 -- when the Profile's OK button is clicked
 function ThisIsMe:OnProfileOK()
 	if self.profileEdit == true and  self.editedProfile ~= nil and not self:CompareTableEqualBoth(self.characterProfiles[self:Character()], self.editedProfile) then
+	self.editedProfile.OwnProfile = true
 		self.characterProfiles[self:Character()] = self.editedProfile
 		self:SendPresenceMessage()
 	end
@@ -687,7 +748,7 @@ function ThisIsMe:OnSave(eLevel)
 		end
 	end
 	self.options.useDefaultProtocolVersion = (self.options.protocolVersion == self.defaultProtocolVersion)
-	return {characterProfiles = self.characterProfiles, options = self.options}
+	return {characterProfiles = self.characterProfiles, options = self.options, myCharacters = self.myCharacters}
 end
 
 function ThisIsMe:OnRestore(eLevel, tData)
@@ -696,21 +757,23 @@ function ThisIsMe:OnRestore(eLevel, tData)
 			if next(tData.characterProfiles) ~= nil then
 				self.characterProfiles = {}
 				for k, v in pairs(tData.characterProfiles) do
-					local addTextMap = false
-					if v.TextMap == nil then
-						addTextMap = true
+					if v.Persist == nil then
+						v.Persist = not self:IsProfileDefault(v)
 					end
-					self.characterProfiles[k] = self:CopyTable(v, self:GetProfileDefaults(k))
-					self.characterProfiles[k].ProtocolVersion = nil
-					if self.characterProfiles[k].Messages ~= nil then
-						if self.characterProfiles[k].Snippets == nil then
-							self.characterProfiles[k].Snippets = self.characterProfiles[k].Messages
+					if v.Persist == true or v.OwnProfile == true then
+						local addTextMap = false
+						if v.TextMap == nil then
+							addTextMap = true
 						end
-						self.characterProfiles[k].Messages = nil
-					end
-					if addTextMap then
-						self.characterProfiles[k].TextMap = self:GetDefaultTextMap()
-						self.characterProfiles[k].Snippets[3] = "Extra"
+						self.characterProfiles[k] = self:CopyTable(v, self:GetProfileDefaults(k))
+						self.characterProfiles[k].ProtocolVersion = nil
+						if self.characterProfiles[k].Messages ~= nil then
+							if self.characterProfiles[k].Snippets == nil then
+								self.characterProfiles[k].Snippets = self.characterProfiles[k].Messages
+							end
+							self.characterProfiles[k].Messages = nil
+						end
+						self:ApplyDefaultTextMap(self.characterProfiles[k])
 					end
 				end
 			end
@@ -731,6 +794,11 @@ function ThisIsMe:OnRestore(eLevel, tData)
 			self.options.protocolVersion = self.defaultProtocolVersion
 		end
 		self.dataLoaded = true
+		if tData.myCharacters then
+			for k, v in pairs(tData.myCharacters) do
+				self.myCharacters[k] = v
+			end
+		end
 	end
 	self:CheckData()
 end
@@ -740,9 +808,39 @@ function ThisIsMe:OnOptionsClick( wndHandler, wndControl, eMouseButton )
 end
 
 function ThisIsMe:OnTestClick( wndHandler, wndControl, eMouseButton )
-	local textMapString = self:GetTextMapString(self:Profile().TextMap)
-	self:Print(9, textMapString)
-	self:ParseTextMapString(textMapString)
+	local scale = 1
+	local nextScale = scale * 32
+	for x = 0, 5, 1 do
+		self:TestVarIntRange(scale - 2, scale + 2)
+		scale = nextScale
+		nextScale = nextScale * 33
+	end
+end
+
+function ThisIsMe:TestVarIntRange(num, numEnd)
+	if num < 0 then num = 0 end
+	for x = num, numEnd, 1 do
+		self:TestVarInt(x)
+	end
+end
+
+function ThisIsMe:TestVarInt(num)
+	local enc = LibCommExt:EncodeVarInt(num)
+	local out, msg = LibCommExt:DecodeVarInt(enc)
+	self:Print(1, "StartNum: " .. num .. ", Encoded: " .. enc .. ", Decoded: " .. out)
+end
+
+function ThisIsMe:TestVarString(str)
+	local enc = LibCommExt:EncodeVarString(str)
+	local out, msg = LibCommExt:DecodeVarString(enc)
+	self:Print(1, "StartStr: " .. str .. ", Encoded: " .. enc .. ", Decoded: " .. out)
+end
+
+function ThisIsMe:OnTestCommand(cmd, arg)
+	local msg = LibCommExt:EncodeTypeData(2, tonumber(arg))
+	self:Print(1, msg)
+	local type, num, tmp = LibCommExt:DecodeTypeData(msg)
+	self:Print(1, type .. " " .. num)
 end
 
 -----------------------------------------------------------------------------------------------
@@ -765,11 +863,26 @@ function ThisIsMe:ProfileSort(profile1, profile2)
 	return profile1.Name < profile2.Name
 end
 
--- populate profile list
 function ThisIsMe:PopulateProfileList()
+	if self.profileListSortTimer ~= nil then
+		self.profileListSortTimer:Stop()
+		self.profileListSortTimer = nil
+	end
+	self.profileListSortTimer = ApolloTimer.Create(0.1, false, "PopulateProfileListImpl", self)
+end
+
+-- populate profile list
+function ThisIsMe:PopulateProfileListImpl()
+	if self.profileListSortTimer ~= nil then
+		self.profileListSortTimer:Stop()
+		self.profileListSortTimer = nil
+	end
+	if self.wndProfileList == nil then return end
 	local position = self.wndProfileList:GetVScrollPos()
 	-- make sure the profile list is empty to start with
 	self:DestroyProfileList()
+	
+	GeminiLocale:TranslateWindow(Locale, self.wndMain)
 	
     -- add profiles
 	local ordered = {}
@@ -840,17 +953,17 @@ function ThisIsMe:SetItem(item, name, profile)
 		wndItemText:SetTextColor(kcrNormalText)	end
 	local wndIngameName = item:FindChild("IngameName")
 	if wndIngameName then
-		wndIngameName:SetText(" IG: " .. name)
+		wndIngameName:SetText(" " .. Locale["IngameNameShorthand"] .. ": " .. name)
 	end
 	local wndVersionText = item:FindChild("Version")
 	local upToDate = false
 	if wndVersionText then
 		if (profile.Version ~= nil and profile.StoredVersion ~= nil and profile.Version == profile.StoredVersion) or name == self:Character() then
-			wndVersionText:SetText(" Up to date")
+			wndVersionText:SetText(" " .. Locale["Uptodate"])
 			wndVersionText:SetTextColor(defaultText)
 			upToDate = true
 		else
-			wndVersionText:SetText(" Outdated!")
+			wndVersionText:SetText(" " .. Locale["Outdated"])
 			wndVersionText:SetTextColor(defaultText)
 		end
 		if profile.ProtocolVersion ~= nil and type(profile.ProtocolVersion) == "number" and not self:AllowedProtocolVersion(profile.ProtocolVersion) then
@@ -894,6 +1007,10 @@ function ThisIsMe:SetItem(item, name, profile)
 	if wndViewButton then
 		wndViewButton:SetData(name)
 	end
+	local wndKeepButton = item:FindChild("KeepButton")
+	if wndKeepButton then
+		wndKeepButton:SetData(name)
+	end
 	local portrait = item:FindChild("Portrait")
 	if portrait then
 		if profile.Race == 4 then
@@ -917,6 +1034,12 @@ function ThisIsMe:SetItem(item, name, profile)
 			portrait:SetBGColor(portraitNeutral)
 		end
 	end
+	local keep = item:FindChild("KeepButton")
+	if keep then
+		if profile.keep == nil then profile.keep = false end
+		keep:SetCheck(profile.keep)
+	end
+	GeminiLocale:TranslateWindow(Locale, item)
 end
 
 function ThisIsMe:UpdateItemByName(name)
@@ -941,42 +1064,43 @@ function ThisIsMe:PopulateProfileView()
 	
 	if self.profileEdit then
 		self.editedProfile = self:CopyTable(self.characterProfiles[self.profileCharacter], self:GetProfileDefaults(self.profileCharacter))
+		self:ApplyDefaultTextMap(self.editedProfile)
 		self.editedProfile.Version = ((self.editedProfile.Version or 1) % (64 * 64)) + 1
 		self.editedProfile.StoredVersion = self.editedProfile.Version
 		profile = self.editedProfile
 		
-		item = self:AddProfileEntry(self.wndProfileContainer, "Name")
+		item = self:AddProfileEntry(self.wndProfileContainer, Locale["Name"])
 		item:AddTextBox(self:GetProfileName(self.profileCharacter), "Name")
 		
-		item = self:AddProfileEntry(self.wndProfileContainer, "Gender")
+		item = self:AddProfileEntry(self.wndProfileContainer, Locale["Gender"])
 		item:AddDropdownBox(self.genders, profile.Gender or 1, profile, "Gender")
 		if self.options.debugMode then item:AddSubButtons(true) end
 		
-		item = self:AddProfileEntry(self.wndProfileContainer, "Race")
+		item = self:AddProfileEntry(self.wndProfileContainer, Locale["Race"])
 		item:AddDropdownBox(self.races, profile.Race or 1, profile, "Race")
 		if self.options.debugMode then item:AddSubButtons(true) end
 		
-		item = self:AddProfileEntry(self.wndProfileContainer, "Age")
+		item = self:AddProfileEntry(self.wndProfileContainer, Locale["Age"])
 		item:AddDropdownBox(self.ages, profile.Age or 1, profile, "Age")
 		if self.options.debugMode then item:AddSubButtons(true) end
 		
-		item = self:AddProfileEntry(self.wndProfileContainer, "Height")
+		item = self:AddProfileEntry(self.wndProfileContainer, Locale["Height"])
 		item:AddDropdownBox(self.heights, profile.Length or 1, profile, "Length")
 		if self.options.debugMode then item:AddSubButtons(true) end
 		
-		item = self:AddProfileEntry(self.wndProfileContainer, "Body Type")
+		item = self:AddProfileEntry(self.wndProfileContainer, Locale["Body Type"])
 		item:AddDropdownBox(self.bodyTypes, profile.BodyType or 1, profile, "BodyType")
 		if self.options.debugMode then item:AddSubButtons(true) end
 		
-		item = self:AddProfileEntry(self.wndProfileContainer, "Hair Length")
+		item = self:AddProfileEntry(self.wndProfileContainer, Locale["Hair Length"])
 		item:AddDropdownBox(self.hairLength, profile.HairLength or 1, profile, "HairLength")
 		if self.options.debugMode then item:AddSubButtons(true) end
 		
-		item = self:AddProfileEntry(self.wndProfileContainer, "Hair Quality")
+		item = self:AddProfileEntry(self.wndProfileContainer, Locale["Hair Quality"])
 		item:AddDropdownBox(self.hairQuality, profile.HairQuality or 1, profile, "HairQuality")
 		if self.options.debugMode then item:AddSubButtons(true) end
 		
-		item = self:AddProfileEntry(self.wndProfileContainer, "Hair Style")
+		item = self:AddProfileEntry(self.wndProfileContainer, Locale["Hair Style"])
 		item:AddDropdownBox(self.hairStyle, profile.HairStyle or 1, profile, "HairStyle")
 		if self.options.debugMode then item:AddSubButtons(true) end
 	else
@@ -998,7 +1122,7 @@ function ThisIsMe:PopulateProfileView()
 		for k, v in self:sipairs(profile.TextMap[2]) do
 			if type(v) == "table" then
 				for k2, v2 in self:sipairs(v) do
-					if k2 ~= 1 and type(v2) == "number" and profile.Snippets[v2] ~= nil then
+					if k2 ~= 1 and type(v2) == "number" and (profile.Snippets[v2] ~= nil or (self.profileEdit and v2 == 2)) then
 						item = self:AddProfileEntry(self.wndProfileContainer, "Extra", "")
 						item:SetContent(v2, profile, not self.profileEdit)
 						if self.profileEdit and self.options.debugMode then item:AddSubButtons(false) end
@@ -1016,6 +1140,7 @@ function ThisIsMe:PopulateProfileView()
 		end
 	end
 	self.wndProfileContainer:ArrangeChildrenVert()
+	GeminiLocale:TranslateWindow(Locale, self.wndProfile)
 end
 
 -- clear the item list
@@ -1074,6 +1199,10 @@ function ThisIsMe:CompareTableEqualBoth(table, table2)
 	return self:CompareTableEqual(table, table2) and self:CompareTableEqual(table2, table)
 end
 
+function ThisIsMe:OnClearListClick( wndHandler, wndControl, eMouseButton )
+	self:OpenClearListWarning()
+end
+
 ---------------------------------------------------------------------------------------------------
 -- ListItem Functions
 ---------------------------------------------------------------------------------------------------
@@ -1109,11 +1238,23 @@ function ThisIsMe:OnViewButtonClick( wndHandler, wndControl, eMouseButton )
 	end
 end
 
+function ThisIsMe:OnKeepToggle( wndHandler, wndControl, eMouseButton )
+	local player = wndControl:GetData()
+	if player ~= nil then
+		local prof = self.characterProfiles[player]
+		if prof ~= nil then
+			prof.keep = wndControl:IsChecked()
+		end
+	end
+end
+
 ---------------------------------------------------------------------------------------------------
 -- EntryTextBox Functions
 ---------------------------------------------------------------------------------------------------
 
 function ThisIsMe:OnEntryTextChanged( wndHandler, wndControl, strText )
+	if wndControl == nil then return end
+	if strText == nil then strText = "" end
 	local data = wndControl:GetData()
 	if data ~= nil then
 		self.editedProfile[data] = wndControl:GetText()
@@ -1121,6 +1262,8 @@ function ThisIsMe:OnEntryTextChanged( wndHandler, wndControl, strText )
 end
 
 function ThisIsMe:OnMessageEntryChanged( wndHandler, wndControl, strText )
+	if wndControl == nil then return end
+	if strText == nil then strText = "" end
 	local data = wndControl:GetData()
 	if data ~= nil then
 		self.editedProfile.Snippets = self.editedProfile.Snippets or {}
@@ -1145,7 +1288,7 @@ function ThisIsMe:OpenOptions()
 	self.wndOptions:Invoke()
 	local debugText = self.wndOptions:FindChild("DebugLevel")
 	if debugText then
-		debugText:SetText("  Debug Level: " .. (self.options.logLevel or 0))
+		debugText:SetText("  " .. Locale["DebugLevel"] .. ": " .. (self.options.logLevel or 0))
 	end
 	local debugSlider = self.wndOptions:FindChild("DebugLevelBar")
 	if debugSlider then
@@ -1157,7 +1300,7 @@ function ThisIsMe:OpenOptions()
 	end
 	local protocolText = self.wndOptions:FindChild("ProtocolVersion")
 	if protocolText then
-		protocolText:SetText("  Protocol Version: " .. (self.options.protocolVersion or self.protocolVersionMin))
+		protocolText:SetText("  " .. Locale["ProtocolVersion"] .. ": " .. (self.options.protocolVersion or self.protocolVersionMin))
 	end
 	local protocolSlider = self.wndOptions:FindChild("ProtocolVersionBar")
 	if protocolSlider then
@@ -1198,7 +1341,7 @@ function ThisIsMe:OnDebugLevelChange( wndHandler, wndControl, fNewValue, fOldVal
 	if self.wndOptions ~= nil then
 		local debugText = self.wndOptions:FindChild("DebugLevel")
 		if debugText then
-			debugText:SetText("  Debug Level: " .. fNewValue)
+			debugText:SetText("  " .. Locale["DebugLevel"] .. ": " .. fNewValue)
 		end
 	end
 end
@@ -1208,7 +1351,7 @@ function ThisIsMe:OnProtocolVersionChange( wndHandler, wndControl, fNewValue, fO
 	if self.wndOptions ~= nil then
 		local debugText = self.wndOptions:FindChild("ProtocolVersion")
 		if debugText then
-			debugText:SetText("  Protocol Version: " .. fNewValue)
+			debugText:SetText("  " .. Locale["ProtocolVersion"] .. ": " .. fNewValue)
 		end
 	end
 end
@@ -1216,6 +1359,46 @@ end
 function ThisIsMe:OnDebugModeToggle( wndHandler, wndControl, eMouseButton )
 	self.newOptions.debugMode = wndControl:IsChecked()
 end
+
+---------------------------------------------------------------------------------------------------
+-- ClearListWarning Functions
+---------------------------------------------------------------------------------------------------
+
+function ThisIsMe:OpenClearListWarning()
+	self.wndCLWarn:Invoke()
+	local nameArea = self.wndCLWarn:FindChild("NameArea")
+	if nameArea == nill then return end
+	nameArea:DestroyChildren()
+	for k, v in pairs(self.myCharacters) do
+		self:Print(1, "Creating list entry")
+		local entry = Apollo.LoadForm(self.xmlDoc, "ClearListWarningEntry", nameArea, self)
+		if entry ~= nil then
+			self:Print(1, "List entry created")
+			entry:SetText(k)
+		end
+	end
+	nameArea:ArrangeChildrenVert()
+end
+
+function ThisIsMe:OnClearListProceed( wndHandler, wndControl, eMouseButton )
+	self.wndCLWarn:Close()
+	for k, v in pairs(self.characterProfiles) do
+		if (not self:IsMyAlt(name)) and v.keep ~= true then
+			self.characterProfiles[k] = nil
+		end
+	end
+	self:PopulateProfileList()
+end
+
+function ThisIsMe:OnClearListCancel( wndHandler, wndControl, eMouseButton )
+	self.wndCLWarn:Close()
+end
+
+function ThisIsMe:IsMyAlt(name)
+	if self.myCharacters[name] == true then return true
+	else return false end
+end
+
 ---------------------------------------------------------------------------------------------------
 -- Network Functions
 ---------------------------------------------------------------------------------------------------
@@ -1230,6 +1413,10 @@ function ThisIsMe:CheckComms()
 	self:SetupComms()
 end
 
+function ThisIsMe:EchoReceivedMessage(channel, strMessage, strSender)
+	self.Comm:OnMessageReceived(channel, strMessage, strSender)
+end
+
 function ThisIsMe:SetupComms()
 	if self.startupTimer ~= nil then
 		return
@@ -1237,46 +1424,18 @@ function ThisIsMe:SetupComms()
 	self.startupTimer = ApolloTimer.Create(30, false, "SetupComms", self) -- automatically retry if something goes wrong.
 	
 	if self.Comm ~= nil and self.Comm:IsReady() then
+		if self.startupTimer ~= nil then
+			self.startupTimer:Stop()
+			self.startupTimer = nil
+		end
 		return
 	end
-	self.Comm = ICCommLib.JoinChannel(self.channel, ICCommLib.CodeEnumICCommChannelType.Global)
+	self.Comm = LibCommExt:GetChannel(self.channel)
 	if self.Comm ~= nil then
-		self.Comm:SetJoinResultFunction("OnJoinResult", self)
-		self.Comm:SetReceivedMessageFunction("OnMessageReceived", self)
-		self.Comm:SetSendMessageResultFunction("OnMessageSent", self)
-		self.Comm:SetThrottledFunction("OnMessageThrottled", self)
+		self.Comm:AddReceiveCallback("OnMessageReceived", self)
+		self.Comm:SetReceiveEcho("EchoReceivedMessage", self)
 	else
 		self:Print(1, "Failed to open channel")
-	end
-end
-
-function ThisIsMe:OnJoinResult(channel, eResult)
-	if self.startupTimer ~= nil then
-		self.startupTimer:Stop()
-		self.startupTimer = nil
-	end
-	
-	if eResult == ICCommLib.CodeEnumICCommJoinResult.Join then
-		self:Print(9, string.format('Joined ICComm Channel "%s"', channel:GetName()))
-		if channel:IsReady() then
-			self:Print(9, 'Channel is ready to transmit')
-		else
-			self:Print(1, 'Channel is not ready to transmit')
-		end
-	elseif eResult == ICCommLib.CodeEnumICCommJoinResult.BadName then
-		self:Print(1, 'Channel ' .. channel .. ' has a bad name.')
-	elseif eResult == ICCommLib.CodeEnumICCommJoinResult.Left then
-		self:Print(1, 'Failed to join channel')
-	elseif eResult == ICCommLib.CodeEnumICCommJoinResult.MissingEntitlement then
-		self:Print(1, 'Failed to join channel')
-	elseif eResult == ICCommLib.CodeEnumICCommJoinResult.NoGroup then
-		self:Print(1, 'Failed to join channel')
-	elseif eResult == ICCommLib.CodeEnumICCommJoinResult.NoGuild then
-		self:Print(1, 'Failed to join channel')
-	elseif eResult == ICCommLib.CodeEnumICCommJoinResult.TooManyChannels then
-		self:Print(1, "You are in too many channels to join the TIM channel")
-	else
-		self:Print(1, 'Failed to join channel; join result: ' .. eResult)
 	end
 end
 
@@ -1336,6 +1495,8 @@ function ThisIsMe:ProcessMessage(channel, strMessage, strSender, protocolVersion
 	self:SchedulePlayerTimeout(strSender)
 	self:UpdateItemByName(strSender)
 	
+	local originalVersionInput = protocolVersion
+	
 	local shouldProcessBacklog = false
 	
 	local firstCharacter = strMessage:sub(1,1)
@@ -1346,10 +1507,10 @@ function ThisIsMe:ProcessMessage(channel, strMessage, strSender, protocolVersion
 		if self.characterProfiles[strSender] == nil then shouldUpdate = true end
 		if not (profile.Faction == "E" or profile.Faction == "D") then profile.Faction = firstCharacter end
 		if strMessage:len() > 1 then
-			protocolVersion = self:DecodeMore(strMessage:sub(2,3))
+			protocolVersion = self:DecodeMore1(strMessage:sub(2,3))
 			profile.ProtocolVersion = protocolVersion
 			if self:AllowedProtocolVersion(protocolVersion) then
-				local newVersion = self:DecodeMore(strMessage:sub(4,5))
+				local newVersion = self:DecodeMore1(strMessage:sub(4,5))
 				if profile.Version ~= newVersion and protocolVersion >= 4 then self:SendProfileRequestMessage(strSender) end
 				profile.Version = newVersion
 			end
@@ -1370,6 +1531,9 @@ function ThisIsMe:ProcessMessage(channel, strMessage, strSender, protocolVersion
 		table.insert(profile.BufferedMessages, strMessage)
 		self:SendVersionRequestMessage(strSender)
 		self:Print(1, "Unknown protocol message received from " .. strSender)
+		if originalVersionInput == nil then originalVersionInput = "Nil" end
+		self:Print(1, "Original version input: " .. originalVersionInput)
+		self:Print(1, "Message: " .. strMessage)
 		return
 	end
 	if not shouldIgnore then
@@ -1405,7 +1569,7 @@ function ThisIsMe:ProcessMessage(channel, strMessage, strSender, protocolVersion
 end
 
 function ThisIsMe:sendHeartbeatMessage()
-	self:AddBufferedMessage("*")
+	self:AddBufferedMessage("*", nil, -10) -- don't check for protocol version, previous versions will just ignore this anyway.
 end
 
 function ThisIsMe:EnablePresenceMessage()
@@ -1422,21 +1586,18 @@ function ThisIsMe:SendPresenceMessage()
 		return
 	end
 	local message = self:Faction()
-	if self.options.protocolVersion ~= nil then
-		message = message .. self:EncodeMore(self.options.protocolVersion, 2)
-	end
+	message = message .. self:EncodeMore1(self.options.protocolVersion or 4, 2)
 	if self.characterProfiles[self:Character()] == nil then self.characterProfiles[self:Character()] = self:GetProfileDefaults(self:Character(), self:Unit()) end
-	if self.characterProfiles[self:Character()].Version ~= nil then
-		message = message .. self:EncodeMore(self.characterProfiles[self:Character()].Version, 2)
-	end
-	self:AddBufferedMessage(message)
+	local profile = self.characterProfiles[self:Character()]
+	message = message .. self:EncodeMore1(self.characterProfiles[self:Character()].Version or 1, 2)
+	self:AddBufferedMessage(message, nil, 3)
 	self.announcedSelf = true
 	self.presenceMessageEnabled = false
 	self.presenceMessageTimer = self:ScheduleTimer("EnablePresenceMessage", 10)
 end
 
 function ThisIsMe:SendPresenceRequestMessage()
-	self:AddBufferedMessage("#")
+	self:AddBufferedMessage("#", nil, 2)
 	self:SendPresenceMessage()
 	self.seenEveryone = true
 end
@@ -1459,13 +1620,27 @@ function ThisIsMe:SendVersionRequestMessage(player)
 		self.versionRequestMessageQueued[player] = true
 		return
 	end -- nil counts as true
-	self:AddBufferedMessage("#", player)
+	self:AddBufferedMessage("#", player, 15)
 	self.versionRequestMessageEnabled[player] = false
 	self.presenceRequestMessageTimer = self:ScheduleTimer("EnableVersionRequestMessage", 10, player)
 end
 
 function ThisIsMe:SendProfileRequestMessage(name)
-	self:AddBufferedMessage("~", name)
+	self.profileRequestBuffer[name] = true
+	self.profileRequestTimer = ApolloTimer.Create(5, true, "ProfileRequestTimer", self)
+end
+
+function ThisIsMe:ProfileRequestTimer()
+	local profileRequestName = next(self.profileRequestBuffer)
+	if profileRequestName ~= nil then
+		self:AddBufferedMessage("~", profileRequestName, 0)
+		self.profileRequestBuffer[profileRequestName] = nil
+	else
+		if self.profileRequestTimer ~= nil then
+			self.profileRequestTimer:Stop()
+		end
+		self.profileRequestTimer = nil
+	end
 end
 
 function ThisIsMe:EnableProfileSending()
@@ -1491,7 +1666,7 @@ function ThisIsMe:SendBasicProfileDelayed()
 	if self.allowProfileSending == false then return end
 	self:Print(5, "Sending profile")
 	if self:Profile() ~= nil then
-		self:AddBufferedMessage("@" .. self:EncodeProfile(self:Profile()))
+		self:AddBufferedMessage("@" .. self:EncodeProfile(self:Profile()), nil, 1)
 		if self:Profile().Snippets ~= nil then
 			for k, v in pairs(self:Profile().Snippets) do
 				local num = k + 0
@@ -1499,31 +1674,17 @@ function ThisIsMe:SendBasicProfileDelayed()
 					self:SendTextEntry(num, v)
 				end
 			end
-			if self.options.protocolVersion >= 5 then
-				self:SendTextMap()
-			end
 		end
 	end
 	self.allowProfileSending = false
-	self:ScheduleTimer("EnableProfileSending", #self.messageQueue)
+	self:ScheduleTimer("EnableProfileSending", 30)
 end
 
 function ThisIsMe:SendTextEntry(number, text)
-	if self.options.protocolVersion <= 2 then
-		local num = math.floor(text:len() / 75) + 1
-		local pos = 0
-		local parts = {}
-		for i=1,num do
-			parts[i] = text:sub(pos, pos + 74)
-			pos = pos + 75
-		end
-		for k, v in pairs(parts) do
-			self:AddBufferedMessage("$" .. self:Encode(number) .. self:Encode(k) .. self:Encode(#parts) .. v)
-		end
-	elseif self.options.protocolVersion <= 4 then
-		self:AddBufferedMessage("$" .. self:Encode(number) .. "AA" .. text)
+	if self.options.protocolVersion <= 4 then
+		self:AddBufferedMessage("$" .. self:Encode1(number) .. "AA" .. text, nil, 0)
 	else
-		self:AddBufferedMessage("$" .. self:Encode(number) .. text)
+		self:AddBufferedMessage("$" .. self:Encode1(number) .. text, nil, 0)
 	end
 end
 
@@ -1535,18 +1696,18 @@ function ThisIsMe:SendTextMap()
 end
 
 function ThisIsMe:GetTextMapString(mapSection)
-	if type(mapSection) == "number" then return "n" .. self:Encode(mapSection)
+	if type(mapSection) == "number" then return "n" .. self:Encode1(mapSection)
 	elseif type(mapSection) == "table" then
 		local text = ""
 		local num = 0
 		for k, v in self:sipairs(mapSection) do
 			if type(k) == "number" then
 				local newText = self:GetTextMapString(v)
-				text = text .. self:Encode(k) .. self:EncodeMore(newText:len(), 2) .. newText
+				text = text .. self:Encode1(k) .. self:EncodeMore1(newText:len(), 2) .. newText
 				num = num + 1
 			end
 		end
-		text = "t" .. self:Encode(num) .. text
+		text = "t" .. self:Encode1(num) .. text
 		return text
 	end
 end
@@ -1557,15 +1718,15 @@ function ThisIsMe:ParseTextMapString(mapString)
 	local secondCharacter = mapString:sub(2, 2)
 	if firstCharacter == "n" then
 		self:Print(9, "Adding number to table: " .. secondCharacter)
-		return self:Decode(secondCharacter)
+		return self:Decode1(secondCharacter)
 	elseif firstCharacter == "t" then
 		local table = {}
-		local num = self:Decode(secondCharacter)
+		local num = self:Decode1(secondCharacter)
 		local contents = mapString:sub(3, mapString:len())
 		self:Print(9, "Adding table to table, with " .. num .. " entries")
 		for i=1,num,1 do
-			local entryNum = self:Decode(contents:sub(1,1))
-			local length = self:DecodeMore(contents:sub(2,3))
+			local entryNum = self:Decode1(contents:sub(1,1))
+			local length = self:DecodeMore1(contents:sub(2,3))
 			table[entryNum] = self:ParseTextMapString(contents:sub(4, length + 3))
 			contents = contents:sub(length + 4, contents:len())
 		end
@@ -1576,10 +1737,10 @@ end
 
 function ThisIsMe:ReceiveTextEntry(sender, text)
 	if text ~= nil and sender ~= nil then
-		if self.characterProfiles[sender].ProtocolVersion == nil or self.characterProfiles[sender].ProtocolVersion <= 4 then
-			local number = self:Decode(text:sub(1,1))
-			local part = self:Decode(text:sub(2,2))
-			local total = self:Decode(text:sub(3,3))
+		--if self.characterProfiles[sender].ProtocolVersion == nil or self.characterProfiles[sender].ProtocolVersion <= 5 then
+			local number = self:Decode1(text:sub(1,1))
+			local part = self:Decode1(text:sub(2,2))
+			local total = self:Decode1(text:sub(3,3))
 			local message = text:sub(4, text:len())
 			self.characterProfiles[sender].PartialSnippets = self.characterProfiles[sender].PartialSnippets or {}
 			self.characterProfiles[sender].PartialSnippets[number] = self.characterProfiles[sender].PartialSnippets[number] or {}
@@ -1596,21 +1757,20 @@ function ThisIsMe:ReceiveTextEntry(sender, text)
 			self.characterProfiles[sender].Snippets = self.characterProfiles[sender].Snippets or {}
 			self.characterProfiles[sender].Snippets[number] = completeMessage
 			if number == 2 then
-				self.characterProfiles[sender].Snippets[3] = "Extra" -- add the "extra" header
-				self.characterProfiles[sender].TextMap = self:GetDefaultTextMap()
+				self:ApplyDefaultTextMap(self.characterProfiles[sender])
 			end
-		else
-			local number = self:Decode(text:sub(1,1))
+		--[[else
+			local number = self:Decode1(text:sub(1,1))
 			local message = text:sub(offset, text:len())
 			self.characterProfiles[sender].Snippets = self.characterProfiles[sender].Snippets or {}
 			self.characterProfiles[sender].Snippets[number] = message
-		end
+		end]]
 	end
 end
 
-function ThisIsMe:SendWrappedMessage(text, recipient, protocolVersion)
+function ThisIsMe:SendWrappedMessage(text, recipient, protocolVersion, priority)
 	if protocolVersion == nil then protocolVersion = self.options.protocolVersion end
-	if self.options.protocolVersion <= 2 then return end
+	if protocolVersion <= 2 then return end
 	local pos = 1
 	local length = text:len()
 	local prefix = ""
@@ -1624,26 +1784,26 @@ function ThisIsMe:SendWrappedMessage(text, recipient, protocolVersion)
 			local protocolVersionNum = ""
 			if self.options.protocolVersion >= 4 then
 				chunkSize = chunkSize - 2
-				prefix = "%" .. self:Encode(number) .. self:EncodeMore(protocolVersion, 2) .. self:EncodeMore(length, 2)
+				prefix = "%" .. self:Encode1(number) .. self:EncodeMore1(protocolVersion, 2) .. self:EncodeMore1(length, 2)
 			else
-				prefix = "%" .. self:Encode(number) .. self:EncodeMore(length, 2)
+				prefix = "%" .. self:Encode1(number) .. self:EncodeMore1(length, 2)
 			end
 		elseif pos <= length - self.messageCharacterLimit - 4 then
 			chunkSize = self.messageCharacterLimit - 3
 			if self.options.protocolVersion >= 4 then
-				prefix = "^" .. self:Encode(number) .. self:Encode(sequenceNum)
+				prefix = "^" .. self:Encode1(number) .. self:Encode1(sequenceNum)
 			else
-				prefix = "^" .. self:Encode(number)
+				prefix = "^" .. self:Encode1(number)
 			end
 		else
 			chunkSize = self.messageCharacterLimit - 5
 			if self.options.protocolVersion >= 4 then
-				prefix = "&" .. self:Encode(number) .. self:Encode(sequenceNum) .. self:EncodeMore(length, 2)
+				prefix = "&" .. self:Encode1(number) .. self:Encode1(sequenceNum) .. self:EncodeMore1(length, 2)
 			else
-				prefix = "&" .. self:Encode(number) .. self:EncodeMore(length, 2)
+				prefix = "&" .. self:Encode1(number) .. self:EncodeMore1(length, 2)
 			end
 		end
-		self:AddBufferedMessage(prefix .. text:sub(pos, pos + chunkSize - 1), recipient)
+		self:AddBufferedMessage(prefix .. text:sub(pos, pos + chunkSize - 1), recipient, priority)
 		pos = pos + chunkSize
 		sequenceNum = sequenceNum + 1
 	end
@@ -1652,13 +1812,14 @@ end
 function ThisIsMe:ReceiveWrappedMessage(strMessage, strSender, protocolVersion)
 	local profile = self.characterProfiles[strSender]
 	if profile == nil then return end
+	profile.WrappedMessages = profile.WrappedMessages or {}
 	local firstCharacter = strMessage:sub(1, 1)
-	if not self:AllowedProtocolVersion(protocolVersion) or protocolVersion < 3 then return false end
+	if not self:AllowedProtocolVersion(protocolVersion) then return false end
 	local offset = 0
 	if firstCharacter == "%" or firstCharacter == "^" or firstCharacter == "&" then
-		local messageID = self:Decode(strMessage:sub(2 + offset, 2 + offset))
+		local messageID = self:Decode1(strMessage:sub(2 + offset, 2 + offset))
 		if protocolVersion >= 4 and firstCharacter ~= "%" then
-			local sequenceNum = self:Decode(strMessage:sub(3 + offset, 3 + offset))
+			local sequenceNum = self:Decode1(strMessage:sub(3 + offset, 3 + offset))
 			if profile.WrappedMessages[messageID] == nil or profile.WrappedMessages[messageID].LastSequenceNum == nil then
 				profile.WrappedMessages[messageID] = nil -- message received out of sequence
 				self:Print(1, "Wrapped message received out of sequence; discarded")
@@ -1676,10 +1837,10 @@ function ThisIsMe:ReceiveWrappedMessage(strMessage, strSender, protocolVersion)
 		if firstCharacter == "%" then
 			local protocolContained = protocolVersion
 			if protocolVersion >= 4 then
-				protocolContained = self:DecodeMore(strMessage:sub(3 + offset, 4 + offset))
+				protocolContained = self:DecodeMore1(strMessage:sub(3 + offset, 4 + offset))
 				offset = offset + 2
 			end
-			local length = self:DecodeMore(strMessage:sub(3 + offset, 4 + offset))
+			local length = self:DecodeMore1(strMessage:sub(3 + offset, 4 + offset))
 			local content = strMessage:sub(5 + offset, strMessage:len())
 			profile.WrappedMessages = profile.WrappedMessages or {}
 			profile.WrappedMessages[messageID] = {}
@@ -1695,7 +1856,7 @@ function ThisIsMe:ReceiveWrappedMessage(strMessage, strSender, protocolVersion)
 			profile.WrappedMessages[messageID].LastSequenceNum = ((profile.WrappedMessages[messageID].LastSequenceNum) % 64) + 1
 		end
 		if firstCharacter == "&" then
-			local length = self:DecodeMore(strMessage:sub(3 + offset, 4 + offset))
+			local length = self:DecodeMore1(strMessage:sub(3 + offset, 4 + offset))
 			local content = strMessage:sub(5 + offset, strMessage:len())
 			profile.WrappedMessages[messageID] = profile.WrappedMessages[messageID] or {}
 			profile.WrappedMessages[messageID].Content = (profile.WrappedMessages[messageID].Content or "") .. content
@@ -1736,91 +1897,54 @@ function ThisIsMe:messageLoop()
 	end
 end
 
-function ThisIsMe:AddBufferedMessage(message, recipient, protocolVersion)
-	if message:len() > self.messageCharacterLimit then
-		self:SendWrappedMessage(message, recipient, protocolVersion)
+function ThisIsMe:AddBufferedMessage(message, recipient, protocolVersion, priority)
+	self:CheckComms()
+	if recipient == nil then
+		self:Print(9, "Sending message: " .. message)
+	else
+		self:Print(9, "Sending message to " .. recipient .. ": " .. message)
 	end
-	if self.messageQueue == nil then self.messageQueue = {} end
-	table.insert(self.messageQueue, {Recipient = recipient, Message = message, ProtocolVersion = protocolVersion or self.options.protocolVersion})
-	if self.sendTimer == nil then
-		self.sendTimer = ApolloTimer.Create(1.0, true, "messageLoop", self)
-		self:messageLoop()
+	if message:len() > self.messageCharacterLimit then
+		self:SendWrappedMessage(message, recipient, protocolVersion or self.options.protocolVersion, priority or 0)
+	else
+		self.Comm:SendMessage(recipient, message, protocolVersion or self.options.protocolVersion, priority or 0)
+	end
+	if recipient == nil then
+		self:resetHeartbeat()
 	end
 end
 
-function ThisIsMe:SendMessage(message, recipient)
-	if message == nil then
-		return true
+function ThisIsMe:resetHeartbeat()
+	if self.MyHeartbeatTimer ~= nil then
+		self.MyHeartbeatTimer:Stop()
+		self.MyHeartbeatTimer = nil
 	end
-	if self.Comm == nil then
-		self:SetupComms()
-		return false
-	elseif not self.Comm:IsReady() then
-		self:SetupComms()
-		return false
-	end
-	if recipient == nil then
-		if self.Comm:SendMessage(message) then
-			self:Print(5, "Message Sent: " .. message)
-			if self.heartBeatTimer ~= nil then self.heartBeatTimer:Stop() end
-			self.heartBeatTimer = ApolloTimer.Create(60.0, true, "sendHeartbeatMessage", self)
-			return true
-		end
-	else
-		if self.Comm:SendPrivateMessage(recipient, message) then
-			self:Print(5, "Message Sent to " .. recipient .. ": " .. message)
-			return true
-		end
-	end
-	self:Print(5, "Message sending failed: " .. message)
-	return false
+	self.MyHeartbeatTimer = ApolloTimer.Create(60, true, "sendHeartbeatMessage", self)
 end
 
 ---------------------------------------------------------------------------------------------------
 -- Encoding/Decoding Functions
 ---------------------------------------------------------------------------------------------------
 
-function ThisIsMe:Encode(numToEncode)
-	if numToEncode == nil then
-		return '-'
-	end
-	local b64='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
-	return b64:sub(numToEncode,numToEncode)
+function ThisIsMe:Encode1(numToEncode)
+	return LibCommExt:Encode1(numToEncode)
 end
 
-function ThisIsMe:EncodeMore(num, amount)
-	if num == nil or amount == nil then return end
-	num = num - 1
-	local ret = ""
-	for i=1, amount, 1 do
-		ret = ret .. self:Encode((num % 64) + 1)
-		num = num / 64
-	end
-	return ret
+function ThisIsMe:EncodeMore1(num, amount)
+	return LibCommExt:EncodeMore1(num, amount)
 end
 
-function ThisIsMe:Decode(charToDecode) 
-	if charToDecode == '-' then
-		return nil
-	end
-	local b64='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
-	return string.find(b64, charToDecode,1)
+function ThisIsMe:Decode1(charToDecode) 
+	return LibCommExt:Decode1(charToDecode)
 end
 
-function ThisIsMe:DecodeMore(str)
-	if str == nil then return nil end
-	local num = 0
-	local mult = 1
-	for i=1, str:len(), 1 do
-		num = num + (self:Decode(str:sub(i,i)) - 1) * mult
-		mult = mult * 64
-	end
-	return num + 1
+function ThisIsMe:DecodeMore1(str, amount)
+	return LibCommExt:DecodeMore1(str, amount)
 end
 
 function ThisIsMe:AllowedProtocolVersion(num)
 	if num == nil or type(num) ~= "number" then return nil end
-	if num >= 1 and num <= 4 then return true end
+	if num >= 1 and num <= 5 then return true end
 	return false
 end
 
@@ -1836,47 +1960,47 @@ function ThisIsMe:EncodeProfile(profile)
 	end
 	local protocolVersion = profile.ProtocolVersion or self.options.protocolVersion -- should always be filled in anyway.
 	local ret = "" -- to add: ear/tail size/quality, hair colour, streak colour, eye colour, facial hair style
-	ret = ret .. self:EncodeMore(profile.Version or 1, 2)
-	ret = ret .. self:Encode(profile.HairStyle or 1)
-	ret = ret .. self:Encode(profile.HairLength or 1)
-	ret = ret .. self:Encode(profile.HairQuality or 1)
-	ret = ret .. self:Encode(profile.HairColour or 1)
-	ret = ret .. self:Encode(profile.HairStreaks or 1)
-	ret = ret .. self:Encode(profile.Age or 1)
-	ret = ret .. self:Encode(profile.Gender or 1)
-	ret = ret .. self:AddEncodedValue(self:Encode(profile.Race or 1), protocolVersion, 2, nil)
-	ret = ret .. self:Encode(1) -- Sexuality, to be ignored
-	ret = ret .. self:Encode(1) -- Relationship, also to be ignored
-	ret = ret .. self:Encode(profile.EyeColour or 1)
-	ret = ret .. self:Encode(profile.Length or 1)
-	ret = ret .. self:Encode(profile.BodyType or 1)
+	ret = ret .. self:EncodeMore1(profile.Version or 1, 2)
+	ret = ret .. self:Encode1(profile.HairStyle or 1)
+	ret = ret .. self:Encode1(profile.HairLength or 1)
+	ret = ret .. self:Encode1(profile.HairQuality or 1)
+	ret = ret .. self:Encode1(profile.HairColour or 1)
+	ret = ret .. self:Encode1(profile.HairStreaks or 1)
+	ret = ret .. self:Encode1(profile.Age or 1)
+	ret = ret .. self:Encode1(profile.Gender or 1)
+	ret = ret .. self:Encode1(profile.Race or 1)
+	ret = ret .. self:AddEncodedValue(self:Encode1(1), protocolVersion, nil, 4) -- Sexuality, to be ignored
+	ret = ret .. self:AddEncodedValue(self:Encode1(1), protocolVersion, nil, 4) -- Relationship, also to be ignored
+	ret = ret .. self:Encode1(profile.EyeColour or 1)
+	ret = ret .. self:Encode1(profile.Length or 1)
+	ret = ret .. self:Encode1(profile.BodyType or 1)
 	if profile.Scars ~= nil then
-		ret = ret .. self:Encode((#profile.Scars or 0) + 1)
+		ret = ret .. self:Encode1((#profile.Scars or 0) + 1)
 		for k, v in ipairs(profile.Scars) do
-			ret = ret .. self:Encode(v or 1)
+			ret = ret .. self:Encode1(v or 1)
 		end
-	else ret = ret .. self:Encode(1)
+	else ret = ret .. self:Encode1(1)
 	end
 	if profile.Tattoos ~= nil then
-		ret = ret .. self:Encode((#profile.Tattoos or 0) + 1)
+		ret = ret .. self:Encode1((#profile.Tattoos or 0) + 1)
 		for k, v in ipairs(profile.Tattoos) do
-			ret = ret .. self:Encode(v or 1)
+			ret = ret .. self:Encode1(v or 1)
 		end
-	else ret = ret .. self:Encode(1)
+	else ret = ret .. self:Encode1(1)
 	end
-	if profile.Talents ~= nil then
-		ret = ret .. self:Encode((#profile.Talents or 0) + 1)
+	if profile.Talents ~= nil and protocolVersion <= 4 then
+		ret = ret .. self:Encode1((#profile.Talents or 0) + 1)
 		for k, v in ipairs(profile.Talents) do
-			ret = ret .. self:Encode(v or 1)
+			ret = ret .. self:Encode1(v or 1)
 		end
-	else ret = ret .. self:Encode(1)
+	else ret = ret .. self:Encode1(1)
 	end
 	if profile.Disabilities ~= nil then
-		ret = ret .. self:Encode((#profile.Disabilities or 0) + 1)
+		ret = ret .. self:Encode1((#profile.Disabilities or 0) + 1)
 		for k, v in ipairs(profile.Disabilities) do
-			ret = ret .. self:Encode(v or 1)
+			ret = ret .. self:Encode1(v or 1)
 		end
-	else ret = ret .. self:Encode(1)
+	else ret = ret .. self:Encode1(1)
 	end
 	return ret
 end
@@ -1896,40 +2020,43 @@ function ThisIsMe:DecodeProfile(input, profile)
 	local protocolVersion = profile.ProtocolVersion or self.options.protocolVersion -- should always be filled in anyway.
 	self:Print(9, "Received a profile with protocol version " .. protocolVersion)
 	local inputTable = {Message = input}
-	profile.Version = self:DecodeMore(self:DecodeGetFirstCharacters(inputTable, 2, protocolVersion, nil, nil)) or profile.Version
-	profile.HairStyle = self:DecodeMore(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, nil)) or profile.HairStyle
-	profile.HairLength = self:DecodeMore(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, nil)) or profile.HairLength
-	profile.HairQuality = self:DecodeMore(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, nil)) or profile.HairQuality
-	profile.HairColour = self:DecodeMore(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, nil)) or profile.HairColour
-	profile.HairStreaks = self:DecodeMore(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, nil)) or profile.HairStreaks
-	profile.Age = self:DecodeMore(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, nil)) or profile.Age
-	profile.Gender = self:DecodeMore(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, nil)) or profile.Gender
-	profile.Race = self:DecodeMore(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, 2, nil)) or profile.Race -- only in ProtocolVersion 2 and up
-	self:DecodeMore(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, nil)) -- Sexuality, to be ignored
-	self:DecodeMore(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, nil)) -- Relationship, also to be ignored
-	profile.EyeColour = self:DecodeMore(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, nil)) or profile.EyeColour
-	profile.Length = self:DecodeMore(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, nil)) or profile.Length
-	profile.BodyType = self:DecodeMore(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, nil)) or profile.BodyType
-	local amount = self:DecodeMore(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, nil)) - 1
+	profile.Version = self:DecodeMore1(self:DecodeGetFirstCharacters(inputTable, 2, protocolVersion, nil, nil)) or profile.Version
+	profile.HairStyle = self:DecodeMore1(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, nil)) or profile.HairStyle
+	profile.HairLength = self:DecodeMore1(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, nil)) or profile.HairLength
+	profile.HairQuality = self:DecodeMore1(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, nil)) or profile.HairQuality
+	profile.HairColour = self:DecodeMore1(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, nil)) or profile.HairColour
+	profile.HairStreaks = self:DecodeMore1(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, nil)) or profile.HairStreaks
+	profile.Age = self:DecodeMore1(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, nil)) or profile.Age
+	profile.Gender = self:DecodeMore1(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, nil)) or profile.Gender
+	profile.Race = self:DecodeMore1(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, 2, nil)) or profile.Race -- only in ProtocolVersion 2 and up
+	self:DecodeMore1(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, 4)) -- Sexuality, to be ignored
+	self:DecodeMore1(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, 4)) -- Relationship, also to be ignored
+	profile.EyeColour = self:DecodeMore1(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, nil)) or profile.EyeColour
+	profile.Length = self:DecodeMore1(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, nil)) or profile.Length
+	profile.BodyType = self:DecodeMore1(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, nil)) or profile.BodyType
+	local amount = self:DecodeMore1(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, nil)) - 1
 	profile.Scars = {}
 	for i = 1, amount, 1 do
-		profile.Scars[i] = self:DecodeMore(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, nil)) or 1
+		profile.Scars[i] = self:DecodeMore1(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, nil)) or 1
 	end
-	amount = self:DecodeMore(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, nil)) - 1
+	amount = self:DecodeMore1(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, nil)) - 1
 	profile.Tattoos = {}
 	for i = 1, amount, 1 do
-		profile.Tattoos[i] = self:DecodeMore(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, nil)) or 1
+		profile.Tattoos[i] = self:DecodeMore1(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, nil)) or 1
 	end
-	amount = self:DecodeMore(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, nil)) - 1
-	profile.Talents = {}
-	for i = 1, amount, 1 do
-		profile.Talents[i] = self:DecodeMore(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, nil)) or 1
+	if protocolVersion <= 4 then
+		amount = self:DecodeMore1(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, nil)) - 1
+		profile.Talents = nil
+		for i = 1, amount, 1 do
+			self:DecodeMore1(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, nil))
+		end
 	end
-	amount = self:DecodeMore(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, nil)) - 1
+	amount = self:DecodeMore1(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, nil)) - 1
 	profile.Disabilities = {}
 	for i = 1, amount, 1 do
-		profile.Disabilities[i] = self:DecodeMore(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, nil)) or 1
+		profile.Disabilities[i] = self:DecodeMore1(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, nil)) or 1
 	end
+	profile.Persist = not self:IsProfileDefault(profile)
 	return profile
 end
 
@@ -1957,12 +2084,26 @@ function ThisIsMe:GetDefaultTextMap()
 	}
 end
 
-function ThisIsMe:GetDropdownSnippet(profile, dropdownOption)
-	if profile == nil or dropdownOption == nil then return nil end
-	if profile.Snippets ~= nil and profile.Snippets[1] ~= nil and self.dropdownTextMap[dropdownOption] ~= nil and profile.Snippets[1][self.dropdownTextMap[dropdownOption]] ~= nil then
-		return profile.Snippets[1][self.dropdownTextMap[dropdownOption]]
+function ThisIsMe:ApplyDefaultTextMap(profile)
+	if profile == nil then return end
+	if type(profile) == "string" then profile = self.characterProfiles[profile] end
+	profile.Snippets = profile.Snippets or {}
+	profile.Snippets[3] = "Extra"
+	profile.TextMap = self:GetDefaultTextMap()
+end
+
+function ThisIsMe:GetProfile(profileName)
+	if self.characterProfiles[profileName] == nil then
+		local newProfile = {}
+		self.characterProfiles[profileName] = newProfile
+		table.insert(self.sortedCharacterProfiles, {Name=profileName, Profile=newProfile, SortFunction="ProfileSort", SortTable=self})
+		self:SortCharacterProfiles();
 	end
-	return nil
+	return self.characterProfiles[profileName]
+end
+
+function ThisIsMe:SortCharacterProfiles()
+	table.sort(self.sortedCharacterProfiles, function(a,b) return a.SortTable[a.SortFunction](a.SortTable, a, b) end)
 end
 
 function ThisIsMe:GetProfileDefaults(name, unit)
@@ -1991,8 +2132,39 @@ function ThisIsMe:GetProfileDefaults(name, unit)
 	profile.StoredVersion = 1
 	profile.ProtocolVersion = nil -- just to make sure.
 	profile.Snippets = {}
-	profile.TextMap = self:GetDefaultTextMap()
+	self:ApplyDefaultTextMap(profile)
+	profile.Persist = false
 	return profile
+end
+
+function ThisIsMe:IsProfileDefault(profile)
+	if profile == self:Profile() then return false end
+	if profile.Persist == true then return false end
+	if profile.Age ~= 1 then return false end
+	if profile.EyeColour ~= 1 then return false end
+	if profile.BodyType ~= 1 then return false end
+	if profile.Length ~= 1 then return false end
+	if profile.HairColour ~= 1 then return false end
+	if profile.HairStreaks ~= 1 then return false end
+	if profile.HairStyle ~= 1 then return false end
+	if profile.HairLength ~= 1 then return false end
+	if profile.HairQuality ~= 1 then return false end
+	if profile.TailSize ~= 1 then return false end
+	if profile.TailState ~= 1 then return false end
+	if profile.TailDecoration ~= 1 then return false end
+	if profile.FacialHair ~= 1 then return false end
+	if profile.TailDecoration ~= 1 then return false end
+--	if profile.Version ~= 2 then return false end
+	if #profile.Tattoos > 0 then return false end
+	if profile.Talents == nil or #profile.Talents > 0 then return false end
+	if #profile.Disabilities > 0 then return false end
+	if #profile.Scars > 0 then return false end
+	if profile.Snippets ~= nil then
+		for k, v in pairs(profile.Snippets) do
+			if v:len() > 0 and v ~= "Extra" then return false end
+		end
+	end
+	return true
 end
 
 -----------------------------------------------------------------------------------------------
@@ -2087,6 +2259,8 @@ function ProfileWindow:SetContent(content, profile, readonly)
 	if type(content) == "string" then
 		self:AddContentBox(content, 0, readonly)
 	elseif type(content) == "number" then
+		profile.Snippets = profile.Snippets or {}
+		profile.Snippets[content] = profile.Snippets[content] or ""
 		self:AddContentBox(profile.Snippets[content] or "", content, readonly)
 	elseif type(content) == "table" then
 		for k, v in sipairs(content) do
@@ -2118,7 +2292,7 @@ end
 function ProfileWindow:AddTextBox(defaultText, variableName)
 	if self.optionFrame then
 		self:ClearAllChildren(self.optionFrame)
-		local textbox = Apollo.LoadForm(self:XmlDoc(), "EntryTextBox", self.optionFrame, self)
+		local textbox = Apollo.LoadForm(self:XmlDoc(), "EntryTextBox", self.optionFrame, ThisIsMeInst)
 		local entryText = textbox:FindChild("TextBox")
 		if entryText then
 			entryText:SetText(defaultText)
@@ -2133,7 +2307,7 @@ function ProfileWindow:AddContentBox(text, number, readonly)
 	if self.contentFrame then
 		self.ownedWindow:SetAnchorOffsets(0,0,0,150)
 		self:ClearAllChildren(self.contentFrame)
-		local textbox = Apollo.LoadForm(self:XmlDoc(), "LargeTextBox", self.contentFrame, self)
+		local textbox = Apollo.LoadForm(self:XmlDoc(), "LargeTextBox", self.contentFrame, ThisIsMeInst)
 		local entryText = textbox:FindChild("TextBox")
 		if entryText then
 			entryText:SetText(text)
@@ -2186,9 +2360,11 @@ function ProfileWindow:OnDropdownSelection( wndHandler, wndControl, eMouseButton
 	if data == nil or type(data) ~= "table" then return end
 	self:Print(9, "OnDropdownSelection")
 	if data.Parent == nil or data.Number == nil or data.Table == nil or data.Entry == nil then return end
+	local button = data.Parent:FindChild("DropdownButton")
 	if button ~= nil then
 		button:SetCheck(false)
 		button:SetText(wndControl:GetText())
+		self:Print(9, "Everything works")
 	end
 	data.Table[data.Entry] = data.Number
 end
