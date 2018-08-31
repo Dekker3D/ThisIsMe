@@ -145,7 +145,9 @@ function ThisIsMe:Init()
 	local strConfigureButtonText = ""
 	local tDependencies = {
 		"Gemini:Timer-1.0",
-		"LibCommExt-1.0"
+		"LibCommExt-1.0",
+		"Gemini:Logging-1.2",
+		"Gemini:Locale-1.0"
 	}
     Apollo.RegisterAddon(self, bHasConfigureFunction, strConfigureButtonText, tDependencies)
 end
@@ -159,7 +161,7 @@ function ThisIsMe:OnLoad()
 	LibCommExt = Apollo.GetPackage("LibCommExt-1.0").tPackage
 	GeminiLocale = Apollo.GetPackage("Gemini:Locale-1.0").tPackage
 	Locale = GeminiLocale:GetLocale("ThisIsMe", true)
-	local GeminiLogging = Apollo.GetPackage("Gemini:Logging-Tweaked-1.2").tPackage
+	local GeminiLogging = Apollo.GetPackage("Gemini:Logging-1.2").tPackage
 	glog = GeminiLogging:GetLogger({
         level = GeminiLogging.DEBUG,
         pattern = "TIM %D %n %c %l - %m",
@@ -169,7 +171,7 @@ function ThisIsMe:OnLoad()
 end
 
 function ThisIsMe:OnDocLoaded()
-	glog:FlushBuffer()
+	--glog:FlushBuffer()
 	if self.xmlDoc ~= nil and self.xmlDoc:IsLoaded() then
 	    self.wndMain = Apollo.LoadForm(self.xmlDoc, "ProfileList", nil, self)
 		if self.wndMain == nil then

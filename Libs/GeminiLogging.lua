@@ -5,7 +5,10 @@
 -- Logging library (loosely) based on LuaLogging.
 -- Comes with appenders for GeminiConsole and Print() Debug Channel.
 -------------------------------------------------------------------------------
-local MAJOR,MINOR = "Gemini:Logging-Tweaked-1.2", 3
+
+require "GameLib"
+
+local MAJOR,MINOR = "Gemini:Logging-1.2", 4
 -- Get a reference to the package information if any
 local APkg = Apollo.GetPackage(MAJOR)
 -- If there was an older version loaded we need to see if this is newer
@@ -385,6 +388,7 @@ function GeminiLogging:GetLogger(optSettings)
 	if self.buffering then 
 		logger.buffer = {}
 	end
+	Apollo.RegisterEventHandler("InterfaceMenuListHasLoaded", "OnGameLoaded", logger)
 	
 	-- Set appender
 	if not opt.appender or type(opt.appender) == "string" then
@@ -450,6 +454,10 @@ function GeminiLogging:GetLogger(optSettings)
 			logger.buffer = nil
 		end
 		GeminiLogging:FlushBuffer()
+	end
+	
+	logger.OnGameLoaded = function(self)
+		self.FlushBuffer()
 	end
 
 	return logger
