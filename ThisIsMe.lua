@@ -24,6 +24,7 @@ local YOURADDON_CURRENT_VERSION = string.format("%d.%d.%d", Major, Minor, Patch)
 
 local Locale = nil
 local GeminiLocale = nil
+local glog
  
 -----------------------------------------------------------------------------------------------
 -- Constants
@@ -76,9 +77,6 @@ function ThisIsMe:new(o)
 	o.channel = "__TIM__"
 	
 	o.sendTimer = nil
-	
-	o.errorMessages = {}
-	o.errorBuffer = true
 	
 	o.profileEdit = false
 	o.profileCharacter = nil
@@ -161,16 +159,17 @@ function ThisIsMe:OnLoad()
 	LibCommExt = Apollo.GetPackage("LibCommExt-1.0").tPackage
 	GeminiLocale = Apollo.GetPackage("Gemini:Locale-1.0").tPackage
 	Locale = GeminiLocale:GetLocale("ThisIsMe", true)
+	local GeminiLogging = Apollo.GetPackage("Gemini:Logging-Tweaked-1.2").tPackage
+	glog = GeminiLogging:GetLogger({
+        level = GeminiLogging.DEBUG,
+        pattern = "TIM %D %n %c %l - %m",
+        appender = "GeminiConsole"
+    })
 	self:LoadEntries()
 end
 
 function ThisIsMe:OnDocLoaded()
-	self.errorBuffer = false
-	if self.errorMessages ~= nil then
-		for k, v in pairs(self.errorMessages) do
-			self:Print(0, v)
-		end
-	end
+	glog:FlushBuffer()
 	if self.xmlDoc ~= nil and self.xmlDoc:IsLoaded() then
 	    self.wndMain = Apollo.LoadForm(self.xmlDoc, "ProfileList", nil, self)
 		if self.wndMain == nil then
@@ -218,9 +217,9 @@ function ThisIsMe:OnDocLoaded()
 	self.dataCheckTimer = ApolloTimer.Create(1, true, "CheckData", self)
 	self:resetHeartbeat()
 	
-	self:Print(1, "Currently known alts:")
+	glog:debug("Currently known alts:")
 	for k, v in pairs(self.myCharacters) do
-		self:Print(1, k)
+		glog:debug(k)
 	end
 	self.myCharacters[GameLib.GetPlayerCharacterName()] = true
 end
@@ -265,7 +264,6 @@ function ThisIsMe:ConnectToTargetFrame()
 		elseif self.ForgeFrames then
 			local targetFrame = self.ForgeFrames.wndTargetFrame
 			if targetFrame then
-				self:Print(1, "Forge!")
 				self.TargetFrameButton = Apollo.LoadForm(self.xmlDoc, "TIMForgeButton", targetFrame, self)
 			end
 		end
@@ -454,22 +452,12 @@ end
 -- Utility Functions
 ---------------------------------------------------------------------------------------------------
 
-function ThisIsMe:Print(logLevel, strToPrint)
-	if strToPrint ~= nil and type(logLevel) == "number" and logLevel <= self.options.logLevel and self.options.debugMode == true then
-		if self.errorBuffer then
-			table.insert(self.errorMessages, strToPrint)
-		else
-		 	Print("TIM: " .. strToPrint)
-		end
-	end
-end
-
-function ThisIsMe:PrintTable(logLevel, table)
+function ThisIsMe:PrintTable(table)
 	for k, v in pairs(table) do
-		if type(v) == "table" then self:Print(logLevel, k .. ": table")
-		elseif type(v) == "userdata" then self:Print(logLevel, k .. ": userdata")
-		elseif type(v) == "boolean" then self:Print(logLevel, k .. ": boolean")
-		else self:Print(logLevel, k .. ": " .. v) end
+		if type(v) == "table" then glog:debug(k .. ": table")
+		elseif type(v) == "userdata" then glog:debug(k .. ": userdata")
+		elseif type(v) == "boolean" then glog:debug(k .. ": boolean")
+		else glog:debug(k .. ": " .. v) end
 	end
 end
 
@@ -594,7 +582,7 @@ function ThisIsMe:Faction()
 		elseif factionNum  == 167 then
 			self.currentFaction = "E"
 		else
-			self:Print(9, "Faction unknown: " .. (factionNum or "nil"))
+			glog:error("Faction unknown: " .. (factionNum or "nil"))
 			return "?"
 		end
 		if self.currentFaction ~= nil then
@@ -621,12 +609,12 @@ function ThisIsMe:CheckData()
 		if next(self.currentProfile) == nil or self.currentProfile.Version == nil then
 			self.characterProfiles[self:Character()] = self:GetProfileDefaults(self:Character(), self:Unit())
 			self.characterProfiles[self:Character()].OwnProfile = true
-			self:Print(5, "Profile was empty/unusable; resetting.")
+			glog:info("Profile was empty/unusable; resetting.")
 		else
-			self:Print(9, "Profile found; Name: " .. self.currentCharacter)
+			glog:info("Profile found; Name: " .. self.currentCharacter)
 		end
 		self.profileEmptyCheck = true
-		self:Print(9, "Checked profile for content.")
+		glog:info("Checked profile for content.")
 	end
 	
 	if self.dataLoadedCheck ~= true and self.dataLoaded == true and self.currentCharacter ~= nil then
@@ -637,7 +625,7 @@ function ThisIsMe:CheckData()
 			self:UpdateOnlineStatus(k)
 		end
 		self.dataLoadedCheck = true
-		self:Print(9, "Checked loaded data for content.")
+		glog:info("Checked loaded data for content.")
 	end
 	
 	if self.commCheck ~= true and self.Comm ~= nil and self.Comm:IsReady() and self.currentFaction ~= nil and self.currentFaction ~= "?" and self.currentCharacter ~= nil then
@@ -649,7 +637,7 @@ function ThisIsMe:CheckData()
 	
 	if not self.fullyLoaded and self.profileEmptyCheck and self.commCheck and self.dataLoaded and self.dataLoadedCheck then
 		self.fullyLoaded = true
-		self:Print(1, "TIM fully checked and loaded!")
+		glog:info("TIM fully checked and loaded!")
 		if self.dataCheckTimer ~= nil then
 			self.dataCheckTimer:Stop()
 			self.dataCheckTimer = nil
@@ -827,20 +815,20 @@ end
 function ThisIsMe:TestVarInt(num)
 	local enc = LibCommExt:EncodeVarInt(num)
 	local out, msg = LibCommExt:DecodeVarInt(enc)
-	self:Print(1, "StartNum: " .. num .. ", Encoded: " .. enc .. ", Decoded: " .. out)
+	glog:debug("StartNum: " .. num .. ", Encoded: " .. enc .. ", Decoded: " .. out)
 end
 
 function ThisIsMe:TestVarString(str)
 	local enc = LibCommExt:EncodeVarString(str)
 	local out, msg = LibCommExt:DecodeVarString(enc)
-	self:Print(1, "StartStr: " .. str .. ", Encoded: " .. enc .. ", Decoded: " .. out)
+	glog:debug("StartStr: " .. str .. ", Encoded: " .. enc .. ", Decoded: " .. out)
 end
 
 function ThisIsMe:OnTestCommand(cmd, arg)
 	local msg = LibCommExt:EncodeTypeData(2, tonumber(arg))
-	self:Print(1, msg)
+	glog:debug(msg)
 	local type, num, tmp = LibCommExt:DecodeTypeData(msg)
-	self:Print(1, type .. " " .. num)
+	glog:debug(type .. " " .. num)
 end
 
 -----------------------------------------------------------------------------------------------
@@ -1053,7 +1041,7 @@ end
 
 function ThisIsMe:PopulateProfileView()
 	if self.profileEdit == true then self.profileCharacter = self:Character() end
-	self:Print(1, "Populating profile view: " .. (self.profileCharacter or "literally nobody, your profileCharacter variable is empty"))
+	glog:info("Populating profile view: " .. (self.profileCharacter or "literally nobody, your profileCharacter variable is empty"))
 	self:DestroyProfileView()
 	
 	if self.profileCharacter == nil or self.characterProfiles[self.profileCharacter] == nil then return end
@@ -1234,7 +1222,7 @@ function ThisIsMe:OnViewButtonClick( wndHandler, wndControl, eMouseButton )
 		self.profileCharacter = player
 		self.profileEdit = false
 		self:OpenProfileView()
-		self:Print(9, "Clicked profile view button")
+		glog:debug("Clicked profile view button")
 	end
 end
 
@@ -1274,7 +1262,7 @@ end
 function ThisIsMe:ListFunctions(instance, findText)
 	for k,v in pairs(getmetatable(instance)) do
 		if type(v) == "function" and string.find(k, findText) then
-			self:Print(1, k)
+			glog:debug(k)
 		end
 	end
 end
@@ -1370,10 +1358,10 @@ function ThisIsMe:OpenClearListWarning()
 	if nameArea == nill then return end
 	nameArea:DestroyChildren()
 	for k, v in pairs(self.myCharacters) do
-		self:Print(1, "Creating list entry")
+		glog:debug("Creating list entry")
 		local entry = Apollo.LoadForm(self.xmlDoc, "ClearListWarningEntry", nameArea, self)
 		if entry ~= nil then
-			self:Print(1, "List entry created")
+			glog:debug("List entry created")
 			entry:SetText(k)
 		end
 	end
@@ -1435,12 +1423,12 @@ function ThisIsMe:SetupComms()
 		self.Comm:AddReceiveCallback("OnMessageReceived", self)
 		self.Comm:SetReceiveEcho("EchoReceivedMessage", self)
 	else
-		self:Print(1, "Failed to open channel")
+		glog:error("Failed to open channel")
 	end
 end
 
 function ThisIsMe:OnMessageReceived(channel, strMessage, strSender)
-	self:Print(5, "Received message: " .. strMessage .. " from: " .. strSender)
+	glog:info("Received message: " .. strMessage .. " from: " .. strSender)
 	if self.characterProfiles[strSender] ~= nil then self:ProcessMessage(channel, strMessage, strSender, self.characterProfiles[strSender].ProtocolVersion)
 	else self:ProcessMessage(channel, strMessage, strSender, nil)
 	end
@@ -1458,7 +1446,7 @@ function ThisIsMe:OnPlayerTimeout(player)
 	if player ~= nil then
 		self:UpdateOnlineStatus(player)
 	else
-		self:Print(9, "Unknown player timed out. This should not happen, but probably will.")
+		glog:warn("Unknown player timed out. This should not happen, but probably will.")
 	end
 end
 
@@ -1530,10 +1518,10 @@ function ThisIsMe:ProcessMessage(channel, strMessage, strSender, protocolVersion
 		profile.BufferedMessages = profile.BufferedMessages or {}
 		table.insert(profile.BufferedMessages, strMessage)
 		self:SendVersionRequestMessage(strSender)
-		self:Print(1, "Unknown protocol message received from " .. strSender)
+		glog:warn("Unknown protocol message received from " .. strSender)
 		if originalVersionInput == nil then originalVersionInput = "Nil" end
-		self:Print(1, "Original version input: " .. originalVersionInput)
-		self:Print(1, "Message: " .. strMessage)
+		glog:warn("Original version input: " .. originalVersionInput)
+		glog:warn("Message: " .. strMessage)
 		return
 	end
 	if not shouldIgnore then
@@ -1664,7 +1652,7 @@ end
 
 function ThisIsMe:SendBasicProfileDelayed()
 	if self.allowProfileSending == false then return end
-	self:Print(5, "Sending profile")
+	glog:info("Sending profile")
 	if self:Profile() ~= nil then
 		self:AddBufferedMessage("@" .. self:EncodeProfile(self:Profile()), nil, 1)
 		if self:Profile().Snippets ~= nil then
@@ -1717,13 +1705,13 @@ function ThisIsMe:ParseTextMapString(mapString)
 	local firstCharacter = mapString:sub(1, 1)
 	local secondCharacter = mapString:sub(2, 2)
 	if firstCharacter == "n" then
-		self:Print(9, "Adding number to table: " .. secondCharacter)
+		glog:debug("Adding number to table: " .. secondCharacter)
 		return self:Decode1(secondCharacter)
 	elseif firstCharacter == "t" then
 		local table = {}
 		local num = self:Decode1(secondCharacter)
 		local contents = mapString:sub(3, mapString:len())
-		self:Print(9, "Adding table to table, with " .. num .. " entries")
+		glog:debug("Adding table to table, with " .. num .. " entries")
 		for i=1,num,1 do
 			local entryNum = self:Decode1(contents:sub(1,1))
 			local length = self:DecodeMore1(contents:sub(2,3))
@@ -1731,7 +1719,7 @@ function ThisIsMe:ParseTextMapString(mapString)
 			contents = contents:sub(length + 4, contents:len())
 		end
 		return table
-	else self:Print(9, "Error in parsing a text map")
+	else glog:debug("Error in parsing a text map")
 	end
 end
 
@@ -1822,13 +1810,13 @@ function ThisIsMe:ReceiveWrappedMessage(strMessage, strSender, protocolVersion)
 			local sequenceNum = self:Decode1(strMessage:sub(3 + offset, 3 + offset))
 			if profile.WrappedMessages[messageID] == nil or profile.WrappedMessages[messageID].LastSequenceNum == nil then
 				profile.WrappedMessages[messageID] = nil -- message received out of sequence
-				self:Print(1, "Wrapped message received out of sequence; discarded")
+				glog:debug("Wrapped message received out of sequence; discarded")
 				return
 			else
 				local expectedSequenceNum = ((profile.WrappedMessages[messageID].LastSequenceNum) % 64) + 1
 				if sequenceNum ~= expectedSequenceNum then
 					profile.WrappedMessages[messageID] = nil -- message received out of sequence
-					self:Print(1, "Wrapped message received out of sequence: " .. sequenceNum .. " instead of " .. expectedSequenceNum .. "; discarded")
+					glog:debug("Wrapped message received out of sequence: " .. sequenceNum .. " instead of " .. expectedSequenceNum .. "; discarded")
 					return
 				end
 			end
@@ -1872,7 +1860,7 @@ function ThisIsMe:OnMessageSent(channel, eResult, idMessage)
 end
 
 function ThisIsMe:OnMessageThrottled(channel, eResult, idMessage)
-	self:Print(1, "A message got throttled")
+	glog:debug("A message got throttled")
 end
 
 function ThisIsMe:OnTimer()
@@ -1900,9 +1888,9 @@ end
 function ThisIsMe:AddBufferedMessage(message, recipient, protocolVersion, priority)
 	self:CheckComms()
 	if recipient == nil then
-		self:Print(9, "Sending message: " .. message)
+		glog:info("Sending message: " .. message)
 	else
-		self:Print(9, "Sending message to " .. recipient .. ": " .. message)
+		glog:info("Sending message to " .. recipient .. ": " .. message)
 	end
 	if message:len() > self.messageCharacterLimit then
 		self:SendWrappedMessage(message, recipient, protocolVersion or self.options.protocolVersion, priority or 0)
@@ -2018,7 +2006,7 @@ function ThisIsMe:DecodeProfile(input, profile)
 		return nil
 	end
 	local protocolVersion = profile.ProtocolVersion or self.options.protocolVersion -- should always be filled in anyway.
-	self:Print(9, "Received a profile with protocol version " .. protocolVersion)
+	glog:info("Received a profile with protocol version " .. protocolVersion)
 	local inputTable = {Message = input}
 	profile.Version = self:DecodeMore1(self:DecodeGetFirstCharacters(inputTable, 2, protocolVersion, nil, nil)) or profile.Version
 	profile.HairStyle = self:DecodeMore1(self:DecodeGetFirstCharacters(inputTable, 1, protocolVersion, nil, nil)) or profile.HairStyle
@@ -2358,13 +2346,13 @@ end
 function ProfileWindow:OnDropdownSelection( wndHandler, wndControl, eMouseButton )
 	local data = wndControl:GetData()
 	if data == nil or type(data) ~= "table" then return end
-	self:Print(9, "OnDropdownSelection")
+	glog:debug("OnDropdownSelection")
 	if data.Parent == nil or data.Number == nil or data.Table == nil or data.Entry == nil then return end
 	local button = data.Parent:FindChild("DropdownButton")
 	if button ~= nil then
 		button:SetCheck(false)
 		button:SetText(wndControl:GetText())
-		self:Print(9, "Everything works")
+		glog:debug("Everything works")
 	end
 	data.Table[data.Entry] = data.Number
 end
