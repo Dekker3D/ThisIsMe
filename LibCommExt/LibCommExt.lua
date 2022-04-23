@@ -3,8 +3,8 @@
 -- Copyright (c) Dekker3D. All rights reserved
 -----------------------------------------------------------------------------------------------
  
-require "ICComm"
-require "ICCommLib"
+require "ChatSystemLib"
+require "ChatChannelLib"
 
 local PACKAGENAME, MAJOR, MINOR, PATCH = "LibCommExt", 1, 0, 1
 local PACKAGESTRING = PACKAGENAME .. "-" .. MAJOR .. "." .. MINOR
@@ -53,8 +53,48 @@ function LibCommExt:EnsureInit()
 		for k, v in pairs(self.Types) do
 			self.Types[v] = k
 		end
+		
+		ApolloTimer.Create(5, true, "HookChat", self)
 	end
-	if self.Initialized == true then self.Ready = true end
+end
+
+function LibCommExt:HookChat()
+	if self.hooked ~= true then
+		self:Print("Hooked!")
+		aChatLog = Apollo.GetAddon("ChatLog")
+
+		if not aChatLog then
+			aChatLog = Apollo.GetAddon("BetterChatLog")
+		end
+
+		if not aChatLog then
+			aChatLog = Apollo.GetAddon("ChatFixed")
+		end
+
+		if not aChatLog then
+			aChatLog = Apollo.GetAddon("ImprovedChatLog")
+		end
+
+		if not aChatLog then
+			aChatLog = Apollo.GetAddon("FixedChatLog")
+		end
+
+		if aChatLog and aChatLog.OnChatMessage then
+			fChatLog_OnChatMessage = aChatLog.OnChatMessage
+			aChatLog.OnChatMessage = self.ChatLog_OnChatMessage
+		end
+		self.hooked = true
+	end
+	if self.initialized and self.hooked then self.Ready = true end
+end
+
+function LibCommExt.ChatLog_OnChatMessage(self, channelCurrent, tMessage)
+	if self.ChannelTable ~= nil then
+		for k, _ in ipairs(self.ChannelTable) do
+			if string.match(channelCurrent:GetName(), k) then return end
+		end
+	end
+	fChatLog_OnChatMessage(self, channelCurrent, tMessage)
 end
 
 function LibCommExt:GetChannel(channelName, version)
@@ -109,7 +149,8 @@ function LibCommExt:MessageLoop()
 	for _, v in ipairs(self.Queue) do
 		if self.RemainingCharacters > 0 then -- not just using continue because apparently in LUA that can break stuff?
 			self.CurrentMessage = v
-			pcall(function() self:HandleMessage() end)
+			--pcall(function() self:HandleMessage() end)
+			self:HandleMessage()
 		end
 	end
 end
@@ -451,6 +492,31 @@ function LibCommExt:DecodeMessage(message)
 	end
 end
 
+function LibCommExt:HideChannel(id)
+    if not aChatLog then
+        return
+    end
+
+    if not aChatLog.tChatWindows then
+        return
+    end
+
+	for key, wnd in pairs(aChatLog.tChatWindows) do
+		local tData = wnd:GetData()
+
+    	if tData.tViewedChannels then
+    		tData.tViewedChannels[id] = false
+
+    		aChatLog:HelperRemoveChannelFromAll(id)
+    	end
+    end
+end
+
+function LibCommExt:OnDependencyError(strDependency, strError)
+    -- ignore dependency errors, because we only did set dependecies to ensure to get loaded after the specified addons
+    return true
+end
+
 ---------------------------------------------------------------------------------------------------
 -- CommExtChannel Functions
 ---------------------------------------------------------------------------------------------------
@@ -482,27 +548,38 @@ function CommExtChannel:Print(strToPrint)
 end
 
 function CommExtChannel:Connect()
-	if self.Channel == nil or type(self.Channel) ~= "string" or self.Channel:len() <= 0 then return end
-	if self.Comm ~= nil and self.Comm:IsReady() then
-		return
-	end
-	self.Comm = ICCommLib.JoinChannel(self.Channel, ICCommLib.CodeEnumICCommChannelType.Global)
-	if self.Comm ~= nil then
-		self.Comm:SetJoinResultFunction("OnJoinResult", self)
-		self.Comm:SetReceivedMessageFunction("OnMessageReceived", self)
-		self.Comm:SetSendMessageResultFunction("OnMessageSent", self)
-		self.Comm:SetThrottledFunction("OnMessageThrottled", self)
-	else
-		self:Print("Failed to open channel")
-	end
+    if LibCommExt.Ready ~= true or self.Channel == nil or type(self.Channel) ~= "string" or self.Channel:len() <= 0 then return end
+	if self.Comm ~= nil then return end
+	local chatActive = false
+
+    for idx, channelCurrent in ipairs(ChatSystemLib.GetChannels()) do
+    	if channelCurrent:GetName() == self.Channel then
+    		chatActive = true
+    		self.Comm = channelCurrent
+    	end
+    end
+
+    if not chatActive then
+    	ChatSystemLib.JoinChannel(self.Channel)
+    end
+
+    if self.Comm then
+    	LibCommExt:HideChannel(self.Comm:GetUniqueId())
+    else
+    	ApolloTimer.Create(1, false, "Connect", self)
+    end
 end
 
 function CommExtChannel:IsReady()
-	return self.Comm ~= nil and self.Comm:IsReady()
-end
-
-function CommExtChannel:SetReceiveEcho(callback, owner)
-	self.Comm:SetReceivedMessageFunction(callback, owner)
+	if LibCommExt.hooked then
+		if self.Comm == nil then
+			self:Connect()
+			return false
+		else
+			return true
+		end
+	end
+	return false
 end
 
 function CommExtChannel:AddReceiveCallback(callback, owner)
@@ -510,30 +587,6 @@ function CommExtChannel:AddReceiveCallback(callback, owner)
 		table.insert(self.Callbacks, {Callback = callback, Owner = owner})
 	elseif type(callback) == "string" then
 		table.insert(self.Callbacks, {Callback = owner[callback], Owner = owner})
-	end
-end
-
-function CommExtChannel:OnJoinResult(channel, eResult)
-	if eResult == ICCommLib.CodeEnumICCommJoinResult.Join then
-		if channel:IsReady() then
-			self:Print('Channel is ready to transmit')
-		else
-			self:Print('Channel is not ready to transmit')
-		end
-	elseif eResult == ICCommLib.CodeEnumICCommJoinResult.BadName then
-		self:Print('Channel ' .. channel .. ' has a bad name.')
-	elseif eResult == ICCommLib.CodeEnumICCommJoinResult.Left then
-		self:Print('Failed to join channel')
-	elseif eResult == ICCommLib.CodeEnumICCommJoinResult.MissingEntitlement then
-		self:Print('Failed to join channel')
-	elseif eResult == ICCommLib.CodeEnumICCommJoinResult.NoGroup then
-		self:Print('Failed to join channel')
-	elseif eResult == ICCommLib.CodeEnumICCommJoinResult.NoGuild then
-		self:Print('Failed to join channel')
-	elseif eResult == ICCommLib.CodeEnumICCommJoinResult.TooManyChannels then
-		self:Print("You are in too many channels to join the TIM channel")
-	else
-		self:Print('Failed to join channel; join result: ' .. eResult)
 	end
 end
 
@@ -563,14 +616,10 @@ function CommExtChannel:SendActualMessage(message)
 	if self.Comm == nil then
 		self:Connect()
 		return false
-	elseif not self.Comm:IsReady() then
-		self:Connect()
-		return false
 	end
 	if message.Recipient == nil then
-		if self.Comm:SendMessage(message.Message) then
-			return true
-		end
+		self.Comm:Send(message.Message)
+		return true
 	else
 		if self.Comm:SendPrivateMessage(message.Recipient, message.Message) then
 			return true
@@ -582,6 +631,7 @@ end
 function CommExtChannel:HandleQueue(message, remainingChars, first)
 	if message.Message:len() <= remainingChars or first then
 		if self:SendActualMessage(message) then
+			self:Print("Test SendActualMessage")
 			return message.Message:len()
 		end
 	end
@@ -642,4 +692,13 @@ end
 
 LibCommExt:EnsureInit()
 
-Apollo.RegisterPackage(LibCommExt, PACKAGESTRING, PATCH, {})
+Apollo.RegisterPackage(LibCommExt, PACKAGESTRING, PATCH, {
+		"ChatLog",
+        "BetterChatLog",
+        "ChatFixed",
+        "ImprovedChatLog",
+        "FixedChatLog",
+        "ChatAdvanced",
+        "ChatSplitter",
+        "ChatLinks"
+		})

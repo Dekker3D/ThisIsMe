@@ -224,6 +224,7 @@ function ThisIsMe:OnDocLoaded()
 		glog:debug(k)
 	end
 	self.myCharacters[GameLib.GetPlayerCharacterName()] = true
+	LibCommExt:HookChat()
 end
 
 function ThisIsMe:OnInterfaceMenuListHasLoaded()
@@ -1403,10 +1404,6 @@ function ThisIsMe:CheckComms()
 	self:SetupComms()
 end
 
-function ThisIsMe:EchoReceivedMessage(channel, strMessage, strSender)
-	self.Comm:OnMessageReceived(channel, strMessage, strSender)
-end
-
 function ThisIsMe:SetupComms()
 	if self.startupTimer ~= nil then
 		return
@@ -1423,7 +1420,6 @@ function ThisIsMe:SetupComms()
 	self.Comm = LibCommExt:GetChannel(self.channel)
 	if self.Comm ~= nil then
 		self.Comm:AddReceiveCallback("OnMessageReceived", self)
-		self.Comm:SetReceiveEcho("EchoReceivedMessage", self)
 	else
 		glog:error("Failed to open channel")
 	end
