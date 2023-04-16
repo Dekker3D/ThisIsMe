@@ -54,7 +54,7 @@ function LibCommExt:EnsureInit()
 			self.Types[v] = k
 		end
 		
-		ApolloTimer.Create(5, true, "HookChat", self)
+		ApolloTimer.Create(5, false, "HookChat", self)
 	end
 end
 
@@ -85,13 +85,19 @@ function LibCommExt:HookChat()
 		end
 		self.hooked = true
 	end
-	if self.initialized and self.hooked then self.Ready = true end
+	if self.Initialized and self.hooked then self.Ready = true end
 end
 
 function LibCommExt.ChatLog_OnChatMessage(self, channelCurrent, tMessage)
+	print("Received message")
 	if self.ChannelTable ~= nil then
-		for k, _ in ipairs(self.ChannelTable) do
-			if string.match(channelCurrent:GetName(), k) then return end
+		for k, v in ipairs(self.ChannelTable) do
+			self:Print(channelCurrent .. " - " .. k)
+			if string.match(channelCurrent:GetName(), k) then
+				v:OnMessageReceived(v.Comm, tMessage, nil)
+				self:Print("Received message: " .. tMessage)
+				return
+			end
 		end
 	end
 	fChatLog_OnChatMessage(self, channelCurrent, tMessage)
@@ -549,7 +555,8 @@ end
 
 function CommExtChannel:Connect()
     if LibCommExt.Ready ~= true or self.Channel == nil or type(self.Channel) ~= "string" or self.Channel:len() <= 0 then return end
-	if self.Comm ~= nil then return end
+    if self.Comm ~= nil then return end
+	
 	local chatActive = false
 
     for idx, channelCurrent in ipairs(ChatSystemLib.GetChannels()) do
@@ -571,7 +578,7 @@ function CommExtChannel:Connect()
 end
 
 function CommExtChannel:IsReady()
-	if LibCommExt.hooked then
+	if LibCommExt.hooked == true and LibCommExt.Initialized == true then
 		if self.Comm == nil then
 			self:Connect()
 			return false
@@ -631,7 +638,6 @@ end
 function CommExtChannel:HandleQueue(message, remainingChars, first)
 	if message.Message:len() <= remainingChars or first then
 		if self:SendActualMessage(message) then
-			self:Print("Test SendActualMessage")
 			return message.Message:len()
 		end
 	end

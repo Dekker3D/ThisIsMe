@@ -219,11 +219,17 @@ function ThisIsMe:OnDocLoaded()
 	self.dataCheckTimer = ApolloTimer.Create(1, true, "CheckData", self)
 	self:resetHeartbeat()
 	
-	glog:debug("Currently known alts:")
-	for k, v in pairs(self.myCharacters) do
-		glog:debug(k)
-	end
+	--glog:debug("Currently known alts:")
+	--for k, v in pairs(self.myCharacters) do
+	--	glog:debug(k)
+	--end
 	self.myCharacters[GameLib.GetPlayerCharacterName()] = true
+	
+	--ApolloTimer.Create(20, false, "HookChat", self)
+	self:ScheduleTimer("HookChat", 5, self)
+end
+
+function ThisIsMe.HookChat(self)
 	LibCommExt:HookChat()
 end
 
